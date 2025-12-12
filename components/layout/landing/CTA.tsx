@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 
 export function CTA() {
   return (
-    <section className="py-20 md:py-32 bg-primary text-primary-foreground">
+    <section className="py-20 md:py-32 bg-muted/30">
       <div className="container mx-auto max-w-7xl px-4 md:px-6">
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl mb-6">
@@ -18,7 +18,6 @@ export function CTA() {
             <Link href="/dashboard">
               <Button
                 size="lg"
-                variant="secondary"
                 className="gap-2 text-base px-8"
               >
                 Get Started Free
@@ -29,7 +28,7 @@ export function CTA() {
               <Button
                 size="lg"
                 variant="outline"
-                className="gap-2 text-base px-8 bg-transparent border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
+                className="gap-2 text-base px-8"
               >
                 View All Features
               </Button>
