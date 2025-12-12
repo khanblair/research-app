@@ -1,0 +1,127 @@
+/* PDF Viewer Custom Styles */
+.pdf-viewer-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: #f5f5f5;
+}
+
+.pdf-page-container {
+  position: relative;
+  margin: 20px auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: white;
+}
+
+.pdf-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pdf-text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  opacity: 0.2;
+  line-height: 1;
+}
+
+.pdf-text-layer > span {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.pdf-text-layer ::selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.pdf-highlight-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.pdf-highlight {
+  position: absolute;
+  mix-blend-mode: multiply;
+  opacity: 0.4;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.pdf-highlight:hover {
+  opacity: 0.6;
+}
+
+.pdf-highlight-yellow {
+  background-color: #fef08a;
+}
+
+.pdf-highlight-green {
+  background-color: #86efac;
+}
+
+.pdf-highlight-blue {
+  background-color: #93c5fd;
+}
+
+.pdf-highlight-purple {
+  background-color: #d8b4fe;
+}
+
+.pdf-highlight-pink {
+  background-color: #fbcfe8;
+}
+
+/* PDF Controls */
+.pdf-controls {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pdf-page-input {
+  width: 60px;
+  text-align: center;
+}
+
+.pdf-zoom-level {
+  min-width: 80px;
+  text-align: center;
+}
+
+/* Loading states */
+.pdf-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.pdf-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: #dc2626;
+}
