@@ -27,8 +27,12 @@ import { toast } from "sonner";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ChatMessage } from "@/components/ai/ChatMessage";
+import { useSearchParams } from "next/navigation";
 
 export default function ChatPage() {
+  const searchParams = useSearchParams();
+  const bookIdFromUrl = searchParams.get("bookId");
+  
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
   const [additionalBookIds, setAdditionalBookIds] = useState<Id<"books">[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<Id<"chatSessions"> | null>(null);
@@ -37,6 +41,16 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const books = useQuery(api.books.list);
+  
+  // Set book from URL parameter on initial load
+  useEffect(() => {
+    if (bookIdFromUrl && books && !selectedBookId) {
+      const bookExists = books.find(b => b._id === bookIdFromUrl);
+      if (bookExists) {
+        setSelectedBookId(bookIdFromUrl as Id<"books">);
+      }
+    }
+  }, [bookIdFromUrl, books, selectedBookId]);
   const sessions = useQuery(
     api.chatSessions.list,
     selectedBookId ? { bookId: selectedBookId } : "skip"

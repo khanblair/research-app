@@ -10,6 +10,7 @@ import {
   Sparkles,
   MessageSquare,
   Scan,
+  Wand2,
 } from "lucide-react";
 
 export const dashboardNav = [
@@ -37,6 +38,11 @@ export const dashboardNav = [
     title: "AI Chat",
     href: "/dashboard/chat",
     icon: MessageSquare,
+  },
+  {
+    title: "Paraphrase",
+    href: "/dashboard/paraphrase",
+    icon: Wand2,
   },
   {
     title: "Notes",

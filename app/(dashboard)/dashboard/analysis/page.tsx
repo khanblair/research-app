@@ -524,7 +524,7 @@ export default function AnalysisPage() {
                       <>
                         <Button
                           variant="default"
-                          onClick={() => window.location.href = "/dashboard/chat"}
+                          onClick={() => window.location.href = `/dashboard/chat?bookId=${selectedBookId}`}
                           disabled={isExtracting || isOcrRunning}
                           title="Chat with AI about this document"
                         >

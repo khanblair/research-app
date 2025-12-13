@@ -1,3 +1,5 @@
+"use client";
+
 import { Features } from "@/components/layout/landing/Features";
 import { CTA } from "@/components/layout/landing/CTA";
 import {

@@ -140,4 +140,15 @@ export default defineSchema({
   })
     .index("by_book", ["bookId"])
     .index("by_extracted_at", ["extractedAt"]),
+
+  paraphrasedTexts: defineTable({
+    bookId: v.id("books"),
+    originalText: v.string(),
+    paraphrasedText: v.string(),
+    model: v.string(), // AI model used
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_book", ["bookId"])
+    .index("by_created_at", ["createdAt"]),
 });

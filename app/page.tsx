@@ -1,3 +1,5 @@
+"use client";
+
 import { Header } from "@/components/layout/landing/Header";
 import { Footer } from "@/components/layout/landing/Footer";
 import { Hero } from "@/components/layout/landing/Hero";

@@ -24,6 +24,9 @@ import {
   BookOpen,
   Loader2,
   Filter,
+  Edit3,
+  Clock,
+  Tag,
 } from "lucide-react";
 import Link from "next/link";
 import { chatWithAI } from "@/lib/puter";
@@ -117,6 +120,7 @@ const formatInlineMarkdown = (text: string) => {
 
 export default function NotesPage() {
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<Id<"notes"> | null>(null);
   const [noteContent, setNoteContent] = useState("");
   const [noteTags, setNoteTags] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -144,6 +148,8 @@ export default function NotesPage() {
     if (filterType === "ai") return note.isAiGenerated;
     return true;
   });
+
+  const selectedNote = filteredNotes?.find((n) => n._id === selectedNoteId);
 
   const handleCreateNote = async () => {
     if (!selectedBookId || !noteContent.trim()) {
@@ -246,6 +252,9 @@ export default function NotesPage() {
   const handleDeleteNote = async (noteId: Id<"notes">) => {
     try {
       await deleteNote({ id: noteId });
+      if (selectedNoteId === noteId) {
+        setSelectedNoteId(null);
+      }
       toast.success("Note deleted");
     } catch (error: any) {
       toast.error(error?.message || "Failed to delete note");
@@ -299,14 +308,18 @@ export default function NotesPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-12">
-          {/* Left Sidebar - Book Selection & Actions */}
-          <div className="lg:col-span-4 space-y-4">
+          {/* Left Sidebar - Book Selection & Create Note */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Book Selection */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Select Book</CardTitle>
               </CardHeader>
               <CardContent>
-                <Select value={selectedBookId || ""} onValueChange={(v) => setSelectedBookId(v as Id<"books">)}>
+                <Select value={selectedBookId || ""} onValueChange={(v) => {
+                  setSelectedBookId(v as Id<"books">);
+                  setSelectedNoteId(null);
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose a book" />
                   </SelectTrigger>
@@ -326,7 +339,7 @@ export default function NotesPage() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" />
+                    <Sparkles className="h-4 w-4 text-purple-500" />
                     AI Generate
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -408,86 +421,166 @@ export default function NotesPage() {
             )}
           </div>
 
-          {/* Right Side - Notes List */}
-          <div className="lg:col-span-8">
-            <Card>
-              <CardHeader>
+          {/* Middle - Notes List */}
+          <div className="lg:col-span-4">
+            <Card className="h-[calc(100vh-12rem)]">
+              <CardHeader className="border-b pb-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>
-                      {selectedBook ? `Notes for "${selectedBook.title}"` : "All Notes"}
-                    </CardTitle>
-                    <CardDescription className="mt-1">
+                    <CardTitle className="text-base">Notes List</CardTitle>
+                    <CardDescription className="text-xs mt-1">
                       {filteredNotes?.length || 0} notes
+                      {selectedBook && ` • ${selectedBook.title}`}
                     </CardDescription>
                   </div>
                   <Select value={filterType} onValueChange={(v: any) => setFilterType(v)}>
-                    <SelectTrigger className="w-32">
-                      <Filter className="h-4 w-4 mr-2" />
+                    <SelectTrigger className="w-28 h-8">
+                      <Filter className="h-3 w-3 mr-2" />
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="manual">Manual</SelectItem>
-                      <SelectItem value="ai">AI Generated</SelectItem>
+                      <SelectItem value="ai">AI</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[calc(100vh-16rem)]">
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-18rem)]">
                   {!filteredNotes || filteredNotes.length === 0 ? (
-                    <EmptyState
-                      icon={FileText}
-                      title="No notes yet"
-                      description={
-                        selectedBookId
-                          ? "Create your first note or use AI to generate one"
-                          : "Select a book to view and create notes"
-                      }
-                    />
+                    <div className="p-6">
+                      <EmptyState
+                        icon={FileText}
+                        title="No notes yet"
+                        description={
+                          selectedBookId
+                            ? "Create your first note or use AI to generate one"
+                            : "Select a book to view and create notes"
+                        }
+                      />
+                    </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="p-2 space-y-2">
                       {filteredNotes.map((note) => (
-                        <Card key={note._id}>
-                          <CardContent className="pt-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 space-y-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {note.isAiGenerated && (
-                                    <Badge variant="secondary">
-                                      <Sparkles className="h-3 w-3 mr-1" />
-                                      AI Generated
-                                    </Badge>
-                                  )}
-                                  {note.tags.map((tag) => (
-                                    <Badge key={tag} variant="outline">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                </div>
-                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div
+                          key={note._id}
+                          onClick={() => setSelectedNoteId(note._id)}
+                          className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                            selectedNoteId === note._id
+                              ? "bg-accent border-primary shadow-sm"
+                              : "hover:bg-accent/50"
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium line-clamp-2">
                                   {note.isAiGenerated ? (
-                                    renderMarkdown(note.content)
+                                    <span className="flex items-center gap-1">
+                                      <Sparkles className="h-3 w-3 text-purple-500" />
+                                      AI Generated Note
+                                    </span>
                                   ) : (
-                                    <div className="whitespace-pre-wrap">{note.content}</div>
+                                    <span className="flex items-center gap-1">
+                                      <Edit3 className="h-3 w-3" />
+                                      Manual Note
+                                    </span>
                                   )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(note.createdAt)}
+                                </p>
+                                <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                  {note.content.substring(0, 100)}...
                                 </p>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteNote(note._id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
                             </div>
-                          </CardContent>
-                        </Card>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {note.tags.slice(0, 2).map((tag) => (
+                                <Badge key={tag} variant="outline" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {note.tags.length > 2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{note.tags.length - 2}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {formatDate(note.createdAt)}
+                            </div>
+                          </div>
+                        </div>
                       ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right - Note Details */}
+          <div className="lg:col-span-5">
+            <Card className="h-[calc(100vh-12rem)]">
+              <CardHeader className="border-b pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Note Details</CardTitle>
+                  {selectedNote && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteNote(selectedNote._id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-18rem)]">
+                  {!selectedNote ? (
+                    <div className="p-6">
+                      <EmptyState
+                        icon={FileText}
+                        title="No note selected"
+                        description="Select a note from the list to view its details"
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-6 space-y-4">
+                      {/* Note Metadata */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {selectedNote.isAiGenerated && (
+                            <Badge variant="secondary" className="gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              AI Generated
+                            </Badge>
+                          )}
+                          {selectedNote.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="gap-1">
+                              <Tag className="h-3 w-3" />
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          {formatDate(selectedNote.createdAt)}
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Note Content */}
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        {selectedNote.isAiGenerated ? (
+                          renderMarkdown(selectedNote.content)
+                        ) : (
+                          <div className="whitespace-pre-wrap">{selectedNote.content}</div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </ScrollArea>
