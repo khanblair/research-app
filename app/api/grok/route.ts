@@ -5,10 +5,12 @@ const REALISTIC_UA =
 
 export async function POST(req: Request) {
   try {
-    const key = process.env.GROK_API_KEY;
+    // Groq keys come from https://console.groq.com and typically start with "gsk_".
+    // Support both names to avoid breaking existing env.local setups.
+    const key = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
     if (!key) {
       return NextResponse.json(
-        { error: "Missing GROK_API_KEY" },
+        { error: "Missing GROQ_API_KEY (or GROK_API_KEY)" },
         { status: 500 }
       );
     }
@@ -23,7 +25,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const upstreamUrl = "https://api.x.ai/v1/chat/completions";
+    // Groq exposes an OpenAI-compatible API surface.
+    const upstreamUrl = "https://api.groq.com/openai/v1/chat/completions";
 
     const upstreamRes = await fetch(upstreamUrl, {
       method: "POST",

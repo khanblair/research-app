@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, Suspense } from "react";
+import { useMemo, useRef, useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -20,6 +20,7 @@ import {
   Trash2,
   BookOpen,
   Sparkles,
+  ArrowDown,
 } from "lucide-react";
 import { chatWithAI } from "@/lib/puter";
 import { AI_MODELS, DEFAULT_AI_MODEL_ID, getModelById, isApiFreeLlmModelId } from "@/lib/ai-models";
@@ -44,6 +45,22 @@ function ChatPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
   const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
+  const scrollAreaRootRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  const getScrollViewport = () => {
+    const root = scrollAreaRootRef.current;
+    if (!root) return null;
+    return root.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLElement | null;
+  };
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const viewport = getScrollViewport();
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  };
 
   const isApiFreeLlm = useMemo(() => isApiFreeLlmModelId(selectedModel), [selectedModel]);
   const isCoolingDown = useMemo(() => {
@@ -105,6 +122,32 @@ function ChatPageContent() {
     api.chatSessions.get,
     selectedSessionId ? { id: selectedSessionId } : "skip"
   );
+
+  // Track scroll position to show a "scroll to bottom" button when user has scrolled up.
+  useEffect(() => {
+    const viewport = getScrollViewport();
+    if (!viewport) return;
+
+    const onScroll = () => {
+      const distanceFromBottom = viewport.scrollHeight - (viewport.scrollTop + viewport.clientHeight);
+      setShowScrollToBottom(distanceFromBottom > 48);
+    };
+
+    onScroll();
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, [currentSession?.messages.length, selectedSessionId]);
+
+  // Auto-scroll when new messages arrive if user is already near the bottom.
+  useEffect(() => {
+    const viewport = getScrollViewport();
+    if (!viewport) return;
+
+    const distanceFromBottom = viewport.scrollHeight - (viewport.scrollTop + viewport.clientHeight);
+    if (distanceFromBottom <= 48) {
+      scrollToBottom("auto");
+    }
+  }, [currentSession?.messages.length]);
   
   // Query all extracted texts once (avoids Rules of Hooks violation)
   const allExtractedTexts = useQuery(api.extractedTexts.list);
@@ -239,6 +282,10 @@ function ChatPageContent() {
         toast.error(`Rate limit exceeded. Please wait ${wait ?? 5} seconds and try again.`);
       } else if (isApiFreeLlm && /internal server error/i.test(errorMsg)) {
         toast.error("ApiFreeLLM is temporarily unavailable. Please wait 5 seconds and try again.");
+      } else if (/incorrect api key/i.test(errorMsg) || /invalid api key/i.test(errorMsg)) {
+        toast.error(
+          "Groq API key looks invalid. Groq keys usually start with `gsk_...`. Update `GROQ_API_KEY` (or `GROK_API_KEY`) and restart the dev server."
+        );
       } else {
         toast.error(`Chat error: ${errorMsg}`);
       }
@@ -468,7 +515,7 @@ function ChatPageContent() {
 
           {/* Chat Area */}
           <div className="lg:col-span-9">
-            <Card className="h-[calc(100vh-16rem)]">
+            <Card className="flex flex-col h-[calc(100vh-16rem)]">
               {!selectedSessionId ? (
                 <div className="h-full flex items-center justify-center">
                   <EmptyState
@@ -487,7 +534,7 @@ function ChatPageContent() {
                 </div>
               ) : (
                 <>
-                  <CardHeader className="border-b">
+                  <CardHeader className="border-b flex-shrink-0">
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle>{selectedBook?.title}</CardTitle>
@@ -504,36 +551,54 @@ function ChatPageContent() {
                     </div>
                   </CardHeader>
 
-                  <ScrollArea className="flex-1 p-4 h-[calc(100%-12rem)]">
-                    {currentSession?.messages.length === 0 ? (
-                      <div className="flex h-full items-center justify-center text-center">
-                        <div>
-                          <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                          <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Ask anything about your document
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {currentSession?.messages.map((message, index) => (
-                          <ChatMessage
-                            key={index}
-                            message={{ role: message.role, content: message.content }}
-                          />
-                        ))}
-                        {isLoading && (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-sm">Thinking...</span>
+                  <div ref={scrollAreaRootRef} className="relative flex-1 min-h-0">
+                    <ScrollArea className="h-full">
+                      <div className="p-4">
+                        {currentSession?.messages.length === 0 ? (
+                          <div className="flex h-full items-center justify-center text-center min-h-[300px]">
+                            <div>
+                              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                              <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
+                              <p className="text-sm text-muted-foreground">
+                                Ask anything about your document
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {currentSession?.messages.map((message, index) => (
+                              <ChatMessage
+                                key={index}
+                                message={{ role: message.role, content: message.content }}
+                                onEdit={(content) => setInput(content)}
+                              />
+                            ))}
+                            {isLoading && (
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">Thinking...</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                  </ScrollArea>
+                    </ScrollArea>
 
-                  <CardContent className="border-t p-4">
+                    {showScrollToBottom && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="absolute bottom-4 right-4 shadow-lg"
+                        onClick={() => scrollToBottom("smooth")}
+                        aria-label="Scroll to bottom"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <CardContent className="border-t p-4 flex-shrink-0">
                     <div className="flex gap-2">
                       <Textarea
                         value={input}

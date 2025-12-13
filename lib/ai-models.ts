@@ -2,14 +2,14 @@
 export const AI_MODELS = [
   {
     id: "meta-llama/llama-4-scout-17b-16e-instruct",
-    name: "Llama 4 Scout 17B (Grok)",
-    description: "High-quality open model via Grok API (requires GROK_API_KEY)",
-    provider: "xAI (Grok)",
+    name: "Llama 4 Scout 17B (Groq)",
+    description: "Fast inference via Groq API",
+    provider: "Groq",
   },
   {
     id: "apifreellm-free",
     name: "ApiFreeLLM (Free)",
-    description: "Free default model (Llama/Qwen based on availability)",
+    description: "Free model Llama/Qwen based",
     provider: "ApiFreeLLM.com (Free)",
   },
   {

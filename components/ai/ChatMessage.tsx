@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, ReactElement } from "react";
-import { User, Bot, Copy, Check } from "lucide-react";
+import { User, Bot, Copy, Check, ChevronDown, ChevronUp, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message;
+  onEdit?: (content: string) => void;
 }
 
 // Strip markdown symbols for copying
@@ -115,9 +116,13 @@ const formatInlineMarkdown = (text: string) => {
   return <>{parts}</>;
 };
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, onEdit }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const isLongMessage = message.content.length > 200;
+  const shouldCollapse = isUser && isLongMessage;
 
   const handleCopy = () => {
     const textToCopy = stripMarkdown(message.content);
@@ -125,6 +130,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
     setCopied(true);
     toast.success("Message copied");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit(message.content);
+      toast.success("Message loaded for editing");
+    }
   };
 
   return (
@@ -151,32 +163,93 @@ export function ChatMessage({ message }: ChatMessageProps) {
         >
           <div className="text-sm leading-relaxed">
             {isUser ? (
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <div>
+                <p className={cn(
+                  "whitespace-pre-wrap break-words",
+                  shouldCollapse && !isExpanded && "line-clamp-3"
+                )}>
+                  {message.content}
+                </p>
+                {shouldCollapse && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full mt-2 text-xs hover:bg-primary-foreground/10"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                  >
+                    {isExpanded ? (
+                      <>
+                        <ChevronUp className="h-3 w-3 mr-1" />
+                        Show less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3 w-3 mr-1" />
+                        Show more
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             ) : (
               renderMarkdown(message.content)
             )}
           </div>
         </div>
-        {!isUser && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-fit text-xs"
-            onClick={handleCopy}
-          >
-            {copied ? (
-              <>
-                <Check className="h-3 w-3 mr-1" />
-                Copied
-              </>
-            ) : (
-              <>
-                <Copy className="h-3 w-3 mr-1" />
-                Copy
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex gap-1">
+          {isUser ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-fit text-xs"
+                onClick={handleCopy}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3 w-3 mr-1" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy
+                  </>
+                )}
+              </Button>
+              {onEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-fit text-xs"
+                  onClick={handleEdit}
+                >
+                  <Edit className="h-3 w-3 mr-1" />
+                  Edit
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-fit text-xs"
+              onClick={handleCopy}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3 w-3 mr-1" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3 w-3 mr-1" />
+                  Copy
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

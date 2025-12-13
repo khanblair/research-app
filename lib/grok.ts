@@ -1,4 +1,4 @@
-// Grok (xAI) API integration via server-side proxy.
+// Groq API integration via server-side proxy.
 // Uses OpenAI-compatible chat completions.
 
 export type GrokChatMessage = {
@@ -43,7 +43,7 @@ export async function generateWithGrokChat(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Grok proxy HTTP ${res.status}: ${text || res.statusText}`);
+    throw new Error(`Groq proxy HTTP ${res.status}: ${text || res.statusText}`);
   }
 
   const data: GrokChatCompletionsResponse = isJson
@@ -55,6 +55,6 @@ export async function generateWithGrokChat(
   if (data.error?.message) throw new Error(data.error.message);
 
   const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Empty response from Grok");
+  if (!text) throw new Error("Empty response from Groq");
   return text;
 }
