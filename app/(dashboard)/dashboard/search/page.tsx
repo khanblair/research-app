@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, Suspense } from "react";
 import { useQuery } from "convex/react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/convex/_generated/api";
+import { useConvexUser } from "@/hooks/use-convex-user";
 import { Breadcrumbs } from "@/components/layout/dashboard/Breadcrumbs";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
@@ -31,6 +32,7 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const { user } = useConvexUser();
 
   // Set initial query from URL parameter
   useEffect(() => {
@@ -40,10 +42,22 @@ function SearchContent() {
     }
   }, [searchParams]);
 
-  const books = useQuery(api.books.list);
-  const notes = useQuery(api.notes.list, {});
-  const citations = useQuery(api.bibliography.list);
-  const chatSessions = useQuery(api.chatSessions.list, {});
+  const books = useQuery(
+    api.books.list,
+    user ? { userId: user._id } : "skip"
+  );
+  const notes = useQuery(
+    api.notes.list,
+    user ? { userId: user._id } : "skip"
+  );
+  const citations = useQuery(
+    api.bibliography.list,
+    user ? { userId: user._id } : "skip"
+  );
+  const chatSessions = useQuery(
+    api.chatSessions.list,
+    user ? { userId: user._id } : "skip"
+  );
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];

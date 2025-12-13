@@ -6,6 +6,7 @@ import { Id } from "./_generated/dataModel";
 export const save = mutation({
   args: {
     id: v.optional(v.id("paraphrasedTexts")),
+    userId: v.id("users"),
     bookId: v.id("books"),
     originalText: v.string(),
     paraphrasedText: v.string(),
@@ -26,6 +27,7 @@ export const save = mutation({
     } else {
       // Create new
       const id = await ctx.db.insert("paraphrasedTexts", {
+        userId: args.userId,
         bookId: args.bookId,
         originalText: args.originalText,
         paraphrasedText: args.paraphrasedText,

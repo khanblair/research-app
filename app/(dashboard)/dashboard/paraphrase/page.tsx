@@ -38,6 +38,7 @@ import {
   isApiFreeLlmRateLimitMessage,
   parseApiFreeLlmWaitSeconds,
 } from "@/lib/apifreellm";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 // Render markdown with proper formatting (same as in notes page)
 const renderMarkdown = (text: string) => {
@@ -229,10 +230,18 @@ export default function ParaphrasePage() {
     return () => window.clearInterval(id);
   }, [cooldownUntilMs, isApiFreeLlm]);
 
-  const books = useQuery(api.books.list);
+  const { user: convexUser } = useConvexUser();
+
+  const books = useQuery(
+    api.books.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
   const selectedBook = books?.find((b) => b._id === selectedBookId);
-  const extractedTexts = useQuery(api.extractedTexts.list);
-  const extractedText = extractedTexts?.find((et) => et.bookId === selectedBookId)?.fullText;
+  const extractedTextData = useQuery(
+    api.extractedTexts.getByBook,
+    selectedBookId ? { bookId: selectedBookId } : "skip"
+  );
+  const extractedText = extractedTextData?.fullText;
   const existingParaphrase = useQuery(
     api.paraphrasedTexts.getByBook,
     selectedBookId ? { bookId: selectedBookId } : "skip"
@@ -276,6 +285,11 @@ export default function ParaphrasePage() {
 
     if (!selectedBookId) {
       toast.error("Please select a document first");
+      return;
+    }
+
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
       return;
     }
 
@@ -355,6 +369,7 @@ Paraphrased version:`;
       // Save to database
       const id = await saveParaphrase({
         id: savedParaphraseId || undefined,
+        userId: convexUser._id,
         bookId: selectedBookId,
         originalText: inputText,
         paraphrasedText: paraphrased,
@@ -386,6 +401,11 @@ Paraphrased version:`;
 
     if (!selectedBookId) {
       toast.error("Please select a document first");
+      return;
+    }
+
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
       return;
     }
 
@@ -461,6 +481,7 @@ New paraphrased version:`;
       // Update database
       const id = await saveParaphrase({
         id: savedParaphraseId || undefined,
+        userId: convexUser._id,
         bookId: selectedBookId,
         originalText: inputText,
         paraphrasedText: paraphrased,

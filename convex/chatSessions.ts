@@ -2,17 +2,22 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
-  args: { bookId: v.optional(v.id("books")) },
+  args: { 
+    userId: v.id("users"),
+    bookId: v.optional(v.id("books")) 
+  },
   handler: async (ctx, args) => {
     if (args.bookId) {
       return await ctx.db
         .query("chatSessions")
         .withIndex("by_book", (q) => q.eq("bookId", args.bookId!))
+        .filter((q) => q.eq(q.field("userId"), args.userId))
         .order("desc")
         .collect();
     }
     return await ctx.db
       .query("chatSessions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
       .collect();
   },
@@ -27,6 +32,7 @@ export const get = query({
 
 export const create = mutation({
   args: {
+    userId: v.id("users"),
     bookId: v.id("books"),
     title: v.string(),
     extractedText: v.optional(v.string()),
@@ -35,6 +41,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const sessionId = await ctx.db.insert("chatSessions", {
+      userId: args.userId,
       bookId: args.bookId,
       title: args.title,
       extractedText: args.extractedText,

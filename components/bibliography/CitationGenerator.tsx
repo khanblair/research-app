@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
+import { useConvexUser } from "@/hooks/use-convex-user";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface CitationData {
   authors: string;
@@ -22,7 +24,9 @@ interface CitationData {
   url?: string;
 }
 
-export function CitationGenerator() {
+export function CitationGenerator({ bookId }: { bookId: Id<"books"> }) {
+  const { user: convexUser } = useConvexUser();
+
   const [formData, setFormData] = useState<CitationData>({
     authors: "",
     title: "",
@@ -44,6 +48,11 @@ export function CitationGenerator() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
+      return;
+    }
+
     if (!formData.authors || !formData.title || !formData.year) {
       toast.error("Please fill in required fields: Authors, Title, and Year");
       return;
@@ -58,6 +67,7 @@ export function CitationGenerator() {
         year: formData.year || undefined,
         edition: formData.edition || undefined,
         isbn: formData.isbn || undefined,
+        pages: formData.pages || undefined,
         doi: formData.doi || undefined,
         url: formData.url || undefined,
       };
@@ -66,7 +76,8 @@ export function CitationGenerator() {
       const formattedCitation = `${citationMetadata.authors.join(", ")}, "${citationMetadata.title}", ${citationMetadata.publisher || "Unknown Publisher"}, ${citationMetadata.year || "n.d."}.`;
 
       await createCitation({
-        bookId: "" as any, // TODO: Get actual bookId from context
+        userId: convexUser._id,
+        bookId,
         formattedCitation,
         metadata: citationMetadata,
       });

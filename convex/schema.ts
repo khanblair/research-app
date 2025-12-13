@@ -2,7 +2,22 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  users: defineTable({
+    clerkId: v.string(),
+    email: v.string(),
+    username: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_email", ["email"])
+    .index("by_username", ["username"]),
+
   books: defineTable({
+    userId: v.id("users"),
     title: v.string(),
     authors: v.array(v.string()),
     publisher: v.optional(v.string()),
@@ -21,14 +36,16 @@ export default defineSchema({
     readingProgress: v.number(), // 0-100
     metadata: v.optional(v.any()),
   })
+    .index("by_user", ["userId"])
     .index("by_upload_time", ["uploadedAt"])
     .index("by_last_opened", ["lastOpenedAt"])
     .searchIndex("search_books", {
       searchField: "title",
-      filterFields: ["fileType"],
+      filterFields: ["userId", "fileType"],
     }),
 
   notes: defineTable({
+    userId: v.id("users"),
     bookId: v.id("books"),
     content: v.string(),
     page: v.optional(v.number()),
@@ -52,14 +69,16 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_user", ["userId"])
     .index("by_book", ["bookId"])
     .index("by_created_at", ["createdAt"])
     .searchIndex("search_notes", {
       searchField: "content",
-      filterFields: ["bookId", "isAiGenerated"],
+      filterFields: ["userId", "bookId", "isAiGenerated"],
     }),
 
   chatSessions: defineTable({
+    userId: v.id("users"),
     bookId: v.id("books"),
     title: v.string(),
     extractedText: v.optional(v.string()), // Reference to extracted text context
@@ -72,11 +91,13 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_user", ["userId"])
     .index("by_book", ["bookId"])
     .index("by_created_at", ["createdAt"])
     .index("by_updated_at", ["updatedAt"]),
 
   highlights: defineTable({
+    userId: v.id("users"),
     bookId: v.id("books"),
     page: v.number(),
     selectedText: v.string(),
@@ -95,10 +116,12 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_user", ["userId"])
     .index("by_book", ["bookId"])
     .index("by_book_and_page", ["bookId", "page"]),
 
   citations: defineTable({
+    userId: v.id("users"),
     bookId: v.id("books"),
     citationNumber: v.number(),
     formattedCitation: v.string(),
@@ -120,6 +143,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_user", ["userId"])
     .index("by_book", ["bookId"])
     .index("by_citation_number", ["citationNumber"]),
 
@@ -142,6 +166,7 @@ export default defineSchema({
     .index("by_extracted_at", ["extractedAt"]),
 
   paraphrasedTexts: defineTable({
+    userId: v.id("users"),
     bookId: v.id("books"),
     originalText: v.string(),
     paraphrasedText: v.string(),
@@ -149,6 +174,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_user", ["userId"])
     .index("by_book", ["bookId"])
     .index("by_created_at", ["createdAt"]),
 });

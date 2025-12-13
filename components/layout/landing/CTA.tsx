@@ -40,7 +40,7 @@ export function CTA() {
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <Link href="/dashboard">
+            <Link href="/sign-up">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button size="lg" className="gap-2 text-base px-8">
                   Get Started Free

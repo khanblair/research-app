@@ -55,15 +55,15 @@ export default function DashboardPage() {
       <Breadcrumbs />
       
       <div className="space-y-6 pb-8">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex-1">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-sm md:text-base text-muted-foreground mt-2">
               Welcome back! Here's an overview of your research activity.
             </p>
           </div>
-          <Link href="/dashboard/library/upload">
-            <Button>
+          <Link href="/dashboard/library/upload" className="md:flex-shrink-0">
+            <Button size="lg" className="w-full md:w-auto">
               <Upload className="mr-2 h-4 w-4" />
               Upload Book
             </Button>

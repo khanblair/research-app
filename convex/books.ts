@@ -9,10 +9,11 @@ export const generateUploadUrl = mutation({
 });
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("books")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
       .collect();
   },
@@ -27,6 +28,7 @@ export const get = query({
 
 export const create = mutation({
   args: {
+    userId: v.id("users"),
     title: v.string(),
     authors: v.array(v.string()),
     fileName: v.string(),
@@ -51,6 +53,7 @@ export const create = mutation({
 
 export const createWithStorage = mutation({
   args: {
+    userId: v.id("users"),
     title: v.string(),
     authors: v.array(v.string()),
     fileName: v.string(),
@@ -70,6 +73,7 @@ export const createWithStorage = mutation({
     }
 
     const bookId = await ctx.db.insert("books", {
+      userId: args.userId,
       title: args.title,
       authors: args.authors,
       publisher: args.publisher,

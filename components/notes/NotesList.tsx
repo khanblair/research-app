@@ -8,6 +8,7 @@ import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 interface NotesListProps {
   bookId?: Id<"books">;
@@ -15,7 +16,15 @@ interface NotesListProps {
 }
 
 export function NotesList({ bookId, onNoteClick }: NotesListProps) {
-  const notes = useQuery(api.notes.list, bookId ? { bookId } : {});
+  const { user: convexUser } = useConvexUser();
+  const notes = useQuery(
+    api.notes.list,
+    convexUser
+      ? bookId
+        ? { userId: convexUser._id, bookId }
+        : { userId: convexUser._id }
+      : "skip"
+  );
   const deleteNote = useMutation(api.notes.remove);
 
   const handleDelete = async (noteId: string) => {

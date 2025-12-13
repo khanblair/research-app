@@ -1,11 +1,17 @@
+"use client";
+
 import { Sidebar } from "@/components/layout/dashboard/Sidebar";
 import { TopNav } from "@/components/layout/dashboard/TopNav";
+import { useSyncUser } from "@/hooks/use-sync-user";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Sync Clerk user with Convex
+  useSyncUser();
+
   return (
     <div className="flex min-h-screen w-full">
       <div className="hidden md:block sticky top-0 h-screen">

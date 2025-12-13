@@ -2,10 +2,11 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("citations")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("asc")
       .collect();
   },
@@ -23,6 +24,7 @@ export const getByBook = query({
 
 export const create = mutation({
   args: {
+    userId: v.id("users"),
     bookId: v.id("books"),
     formattedCitation: v.string(),
     metadata: v.object({

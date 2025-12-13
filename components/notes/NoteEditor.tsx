@@ -12,6 +12,7 @@ import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 import { NoteTags } from "./NoteTags";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 interface NoteEditorProps {
   bookId: Id<"books">;
@@ -40,12 +41,19 @@ export function NoteEditor({
   const [tags, setTags] = useState<string[]>(initialTags);
   const [isSaving, setIsSaving] = useState(false);
 
+  const { user: convexUser } = useConvexUser();
+
   const createNote = useMutation(api.notes.create);
   const updateNote = useMutation(api.notes.update);
 
   const handleSave = async () => {
     if (!content.trim()) {
       toast.error("Note content cannot be empty");
+      return;
+    }
+
+    if (!noteId && !convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
       return;
     }
 
@@ -60,6 +68,7 @@ export function NoteEditor({
         toast.success("Note updated successfully");
       } else {
         await createNote({
+          userId: convexUser!._id,
           bookId,
           content,
           tags,

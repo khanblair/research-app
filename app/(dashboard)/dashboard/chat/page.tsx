@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { useConvexUser } from "@/hooks/use-convex-user";
 import { Breadcrumbs } from "@/components/layout/dashboard/Breadcrumbs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,9 @@ function ChatPageContent() {
   const scrollAreaRootRef = useRef<HTMLDivElement | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
+  // Get current user
+  const { user } = useConvexUser();
+
   const getScrollViewport = () => {
     const root = scrollAreaRootRef.current;
     if (!root) return null;
@@ -91,7 +95,10 @@ function ChatPageContent() {
     return () => window.clearInterval(id);
   }, [cooldownUntilMs, isApiFreeLlm]);
 
-  const books = useQuery(api.books.list);
+  const books = useQuery(
+    api.books.list,
+    user ? { userId: user._id } : "skip"
+  );
   
   // Set book from URL parameter on initial load
   useEffect(() => {
@@ -104,7 +111,7 @@ function ChatPageContent() {
   }, [bookIdFromUrl, books, selectedBookId]);
   const sessions = useQuery(
     api.chatSessions.list,
-    selectedBookId ? { bookId: selectedBookId } : "skip"
+    user && selectedBookId ? { userId: user._id, bookId: selectedBookId } : "skip"
   );
 
   // Set session from URL parameter once sessions are loaded.
@@ -199,8 +206,14 @@ function ChatPageContent() {
       return;
     }
 
+    if (!user) {
+      toast.error("User not found");
+      return;
+    }
+
     try {
       const sessionId = await createSession({
+        userId: user._id,
         bookId: selectedBookId,
         title: `Chat - ${new Date().toLocaleString()}`,
         extractedText,

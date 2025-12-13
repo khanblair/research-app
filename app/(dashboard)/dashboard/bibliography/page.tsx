@@ -35,10 +35,13 @@ import {
   getModelById,
   isApiFreeLlmModelId,
 } from "@/lib/ai-models";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 function BibliographyPageContent() {
   const searchParams = useSearchParams();
   const bookIdFromUrl = searchParams.get("bookId");
+
+  const { user: convexUser } = useConvexUser();
 
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -77,8 +80,14 @@ function BibliographyPageContent() {
     return () => window.clearInterval(id);
   }, [cooldownUntilMs, isApiFreeLlm]);
 
-  const books = useQuery(api.books.list);
-  const citations = useQuery(api.bibliography.list);
+  const books = useQuery(
+    api.books.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
+  const citations = useQuery(
+    api.bibliography.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
   const existingCitation = useQuery(
     api.bibliography.getByBook,
     selectedBookId ? { bookId: selectedBookId } : "skip"
@@ -110,6 +119,11 @@ function BibliographyPageContent() {
   }, [books, bookIdFromUrl, didApplyUrlSelection, selectedBookId]);
 
   const handleGenerateCitation = async () => {
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
+      return;
+    }
+
     if (!selectedBookId || !selectedBook) {
       toast.error("Please select a book first");
       return;
@@ -184,6 +198,7 @@ function BibliographyPageContent() {
       ) as typeof metadata;
       
       await createCitation({
+        userId: convexUser._id,
         bookId: selectedBookId,
         formattedCitation: formats.ieee,
         metadata: cleanMetadata,

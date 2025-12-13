@@ -19,6 +19,7 @@ import type * as lib_validators from "../lib/validators.js";
 import type * as notes from "../notes.js";
 import type * as paraphrasedTexts from "../paraphrasedTexts.js";
 import type * as search from "../search.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   notes: typeof notes;
   paraphrasedTexts: typeof paraphrasedTexts;
   search: typeof search;
+  users: typeof users;
 }>;
 
 /**

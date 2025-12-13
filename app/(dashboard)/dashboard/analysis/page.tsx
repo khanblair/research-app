@@ -21,6 +21,7 @@ import { formatIEEECitation } from "@/lib/citation";
 import { loadPDF, extractTextFromPDF } from "@/lib/pdf-utils";
 import { toast } from "sonner";
 import { performOCR } from "@/lib/ocr";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 export default function AnalysisPage() {
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
@@ -30,7 +31,11 @@ export default function AnalysisPage() {
   const [isOcrRunning, setIsOcrRunning] = useState(false);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
 
-  const books = useQuery(api.books.list);
+  const { user: convexUser } = useConvexUser();
+  const books = useQuery(
+    api.books.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
   const selectedBook = books?.find((b) => b._id === selectedBookId);
   const existingExtraction = useQuery(
     api.extractedTexts.getByBook,

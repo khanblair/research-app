@@ -46,10 +46,10 @@ export function Header() {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-          <Link href="/dashboard">
+          <Link href="/sign-in">
             <Button variant="ghost">Sign In</Button>
           </Link>
-          <Link href="/dashboard">
+          <Link href="/sign-up">
             <Button>Get Started</Button>
           </Link>
         </div>
@@ -94,7 +94,10 @@ export function Header() {
             >
               Privacy
             </Link>
-            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+            <Link href="/sign-in" onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="ghost" className="w-full">Sign In</Button>
+            </Link>
+            <Link href="/sign-up" onClick={() => setMobileMenuOpen(false)}>
               <Button className="w-full">Get Started</Button>
             </Link>
           </nav>

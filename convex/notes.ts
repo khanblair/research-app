@@ -2,16 +2,24 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
-  args: { bookId: v.optional(v.id("books")) },
+  args: { 
+    userId: v.id("users"),
+    bookId: v.optional(v.id("books")) 
+  },
   handler: async (ctx, args) => {
     if (args.bookId) {
       return await ctx.db
         .query("notes")
-        .filter((q) => q.eq(q.field("bookId"), args.bookId))
+        .withIndex("by_book", (q) => q.eq("bookId", args.bookId!))
+        .filter((q) => q.eq(q.field("userId"), args.userId))
         .order("desc")
         .collect();
     }
-    return await ctx.db.query("notes").order("desc").collect();
+    return await ctx.db
+      .query("notes")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .collect();
   },
 });
 
@@ -24,6 +32,7 @@ export const get = query({
 
 export const create = mutation({
   args: {
+    userId: v.id("users"),
     bookId: v.id("books"),
     content: v.string(),
     page: v.optional(v.number()),

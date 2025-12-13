@@ -12,10 +12,15 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { Id } from "@/convex/_generated/dataModel";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 export default function LibraryPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const books = useQuery(api.books.list);
+  const { user: convexUser } = useConvexUser();
+  const books = useQuery(
+    api.books.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
   const deleteBook = useMutation(api.books.remove);
 
   const handleDelete = async (id: Id<"books">) => {

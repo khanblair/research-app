@@ -32,6 +32,7 @@ export const getByPage = query({
 
 export const create = mutation({
   args: {
+    userId: v.id("users"),
     bookId: v.id("books"),
     page: v.number(),
     selectedText: v.string(),

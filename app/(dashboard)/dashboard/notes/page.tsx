@@ -39,6 +39,7 @@ import {
   getModelById,
   isApiFreeLlmModelId,
 } from "@/lib/ai-models";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 // Render markdown with proper formatting (same as ChatMessage)
 const renderMarkdown = (text: string) => {
@@ -131,6 +132,8 @@ function NotesPageContent() {
   const bookIdFromUrl = searchParams.get("bookId");
   const noteIdFromUrl = searchParams.get("noteId");
 
+  const { user: convexUser } = useConvexUser();
+
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<Id<"notes"> | null>(null);
   const [noteContent, setNoteContent] = useState("");
@@ -171,10 +174,17 @@ function NotesPageContent() {
     return () => window.clearInterval(id);
   }, [cooldownUntilMs, isApiFreeLlm]);
 
-  const books = useQuery(api.books.list);
+  const books = useQuery(
+    api.books.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
   const allNotes = useQuery(
     api.notes.list,
-    selectedBookId ? { bookId: selectedBookId } : {}
+    convexUser
+      ? selectedBookId
+        ? { userId: convexUser._id, bookId: selectedBookId }
+        : { userId: convexUser._id }
+      : "skip"
   );
   const extractedTextData = useQuery(
     api.extractedTexts.getByBook,
@@ -224,6 +234,11 @@ function NotesPageContent() {
   }, [filteredNotes, noteIdFromUrl, selectedNoteId]);
 
   const handleCreateNote = async () => {
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
+      return;
+    }
+
     if (!selectedBookId || !noteContent.trim()) {
       toast.error("Please select a book and enter note content");
       return;
@@ -232,6 +247,7 @@ function NotesPageContent() {
     try {
       const tags = noteTags.split(",").map((t) => t.trim()).filter(Boolean);
       await createNote({
+        userId: convexUser._id,
         bookId: selectedBookId,
         content: noteContent,
         tags,
@@ -246,6 +262,11 @@ function NotesPageContent() {
   };
 
   const handleGenerateSummary = async () => {
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
+      return;
+    }
+
     if (!selectedBookId) {
       toast.error("Please select a book first");
       return;
@@ -277,6 +298,7 @@ function NotesPageContent() {
       }
 
       await createNote({
+        userId: convexUser._id,
         bookId: selectedBookId,
         content: summary,
         tags: ["AI Generated", "Summary"],
@@ -299,6 +321,11 @@ function NotesPageContent() {
   };
 
   const handleGenerateKeyPoints = async () => {
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
+      return;
+    }
+
     if (!selectedBookId || !extractedText) {
       toast.error("Please select a book and extract text first");
       return;
@@ -323,6 +350,7 @@ function NotesPageContent() {
       if (!keyPoints) throw new Error("Failed to generate key points");
 
       await createNote({
+        userId: convexUser._id,
         bookId: selectedBookId,
         content: keyPoints,
         tags: ["AI Generated", "Key Points"],

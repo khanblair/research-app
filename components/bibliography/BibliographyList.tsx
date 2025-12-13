@@ -6,9 +6,14 @@ import { CitationCard } from "./CitationCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { BookOpen } from "lucide-react";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 export function BibliographyList() {
-  const citations = useQuery(api.bibliography.list);
+  const { user: convexUser } = useConvexUser();
+  const citations = useQuery(
+    api.bibliography.list,
+    convexUser ? { userId: convexUser._id } : "skip"
+  );
 
   if (citations === undefined) {
     return <LoadingSpinner />;

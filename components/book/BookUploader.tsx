@@ -13,6 +13,7 @@ import { FileIcon } from "@/components/shared/FileIcon";
 import { toast } from "sonner";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useConvexUser } from "@/hooks/use-convex-user";
 
 interface UploadedFile {
   file: File;
@@ -27,11 +28,18 @@ export function BookUploader() {
   const [urlTitle, setUrlTitle] = useState("");
   const [isUrlSaving, setIsUrlSaving] = useState(false);
 
+  const { user: convexUser, isLoading: convexUserLoading } = useConvexUser();
+
   const generateUploadUrl = useMutation(api.books.generateUploadUrl);
   const createBookWithStorage = useMutation(api.books.createWithStorage);
   const createBook = useMutation(api.books.create);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (convexUserLoading || !convexUser) {
+      toast.error("Finishing sign-in… please wait a moment and try again");
+      return;
+    }
+
     const newFiles = acceptedFiles.map((file) => ({
       file,
       progress: 0,
@@ -44,10 +52,11 @@ export function BookUploader() {
     newFiles.forEach((uploadFile, index) => {
       simulateUpload(files.length + index);
     });
-  }, [files.length]);
+  }, [convexUser, convexUserLoading, files.length]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    disabled: convexUserLoading || !convexUser,
     accept: {
       "application/pdf": [".pdf"],
       "application/epub+zip": [".epub"],
@@ -89,6 +98,10 @@ export function BookUploader() {
   };
 
   const persistBook = async (file: File) => {
+    if (!convexUser) {
+      throw new Error("User profile is still loading. Please try again.");
+    }
+
     const ext = getFileExtension(file.name);
     const fileType = (ext === "pdf" || ext === "epub" || ext === "txt") ? ext : "pdf";
 
@@ -109,6 +122,7 @@ export function BookUploader() {
     const { storageId } = (await res.json()) as { storageId: string };
 
     await createBookWithStorage({
+      userId: convexUser._id,
       title: file.name.replace(/\.[^/.]+$/, ""),
       authors: ["Unknown"],
       fileName: file.name,
@@ -146,6 +160,11 @@ export function BookUploader() {
     const url = urlInput.trim();
     if (!url) return;
 
+    if (!convexUser) {
+      toast.error("Loading your profile… please try again in a moment");
+      return;
+    }
+
     let parsed: URL;
     try {
       parsed = new URL(url);
@@ -167,6 +186,7 @@ export function BookUploader() {
 
       // Many sites block Content-Length via CORS; store 0.
       await createBook({
+        userId: convexUser._id,
         title,
         authors: ["Unknown"],
         fileName,
