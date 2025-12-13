@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, ReactElement } from "react";
+import { useMemo, useState, useEffect, ReactElement } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -26,8 +26,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { chatWithAI } from "@/lib/puter";
-import { AI_MODELS, getModelById } from "@/lib/ai-models";
+import {
+  AI_MODELS,
+  DEFAULT_AI_MODEL_ID,
+  getModelById,
+  isFreeModelId,
+  isApiFreeLlmModelId,
+} from "@/lib/ai-models";
 import { toast } from "sonner";
+import {
+  isApiFreeLlmRateLimitMessage,
+  parseApiFreeLlmWaitSeconds,
+} from "@/lib/apifreellm";
 
 // Render markdown with proper formatting (same as in notes page)
 const renderMarkdown = (text: string) => {
@@ -115,14 +125,109 @@ const formatInlineMarkdown = (text: string) => {
   return <>{parts}</>;
 };
 
+const sanitizeParaphraseOutput = (text: string) => {
+  // Remove common model-inserted meta notes like:
+  // [Note: The original text appears to cut off mid-sentence]
+  return (text || "")
+    .replace(/^\[Note:\s*The original text appears to cut off mid-sentence\]\s*$/gim, "")
+    .replace(/^\[Note:.*\]\s*$/gim, "")
+    .replace(/^You have reached your AI usage limit for this account\.?\s*$/gim, "")
+    .trim();
+};
+
+const isUsageLimitMessage = (text: string) => {
+  return /you have reached your ai usage limit for this account\.?/i.test(text || "");
+};
+
+const splitTextIntoChunks = (text: string, maxChars: number) => {
+  const cleaned = (text || "").trim();
+  if (!cleaned) return [] as string[];
+
+  const paragraphs = cleaned.split(/\n\s*\n/);
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const p of paragraphs) {
+    const para = p.trim();
+    if (!para) continue;
+
+    if (!current) {
+      current = para;
+      continue;
+    }
+
+    // If adding this paragraph would overflow, flush current chunk.
+    if (current.length + 2 + para.length > maxChars) {
+      chunks.push(current);
+      current = para;
+      continue;
+    }
+
+    current += `\n\n${para}`;
+  }
+
+  if (current) chunks.push(current);
+
+  // Fallback: if a single paragraph is longer than maxChars, hard-split.
+  const hardSplit: string[] = [];
+  for (const c of chunks) {
+    if (c.length <= maxChars) {
+      hardSplit.push(c);
+      continue;
+    }
+    for (let i = 0; i < c.length; i += maxChars) {
+      hardSplit.push(c.slice(i, i + maxChars));
+    }
+  }
+
+  return hardSplit;
+};
+
 export default function ParaphrasePage() {
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>(AI_MODELS[0].id);
+  // Default to free DeepSeek R1 model to avoid usage limits
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_AI_MODEL_ID);
   const [inputText, setInputText] = useState("");
   const [paraphrasedText, setParaphrasedText] = useState("");
   const [isParaphrasing, setIsParaphrasing] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
   const [savedParaphraseId, setSavedParaphraseId] = useState<Id<"paraphrasedTexts"> | null>(null);
+  const [lastApiCallAtMs, setLastApiCallAtMs] = useState(0);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
+
+  const isApiFreeLlm = useMemo(() => isApiFreeLlmModelId(selectedModel), [selectedModel]);
+  const cooldownUntilMs = useMemo(() => {
+    if (!isApiFreeLlm) return null;
+    if (!lastApiCallAtMs) return null;
+    return lastApiCallAtMs + 5200;
+  }, [isApiFreeLlm, lastApiCallAtMs]);
+
+  const isCoolingDown = useMemo(() => {
+    if (!isApiFreeLlm) return false;
+    if (!cooldownUntilMs) return false;
+    return Date.now() < cooldownUntilMs;
+  }, [cooldownUntilMs, isApiFreeLlm]);
+
+  useEffect(() => {
+    if (!isApiFreeLlm) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    if (!cooldownUntilMs) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      const msLeft = cooldownUntilMs - Date.now();
+      setCooldownSecondsLeft(Math.max(0, Math.ceil(msLeft / 1000)));
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [cooldownUntilMs, isApiFreeLlm]);
 
   const books = useQuery(api.books.list);
   const selectedBook = books?.find((b) => b._id === selectedBookId);
@@ -138,16 +243,22 @@ export default function ParaphrasePage() {
   // Auto-load extracted text when book is selected
   useEffect(() => {
     if (selectedBookId && extractedText) {
-      setInputText(extractedText.slice(0, 15000));
+      // Load the full extracted text so nothing is cut off in the UI.
+      setInputText(extractedText);
       setParaphrasedText("");
       setHasCopied(false);
       setSavedParaphraseId(null);
       
       // Load existing paraphrase if available
       if (existingParaphrase) {
-        setParaphrasedText(existingParaphrase.paraphrasedText);
+        setParaphrasedText(sanitizeParaphraseOutput(existingParaphrase.paraphrasedText));
         setSavedParaphraseId(existingParaphrase._id);
-        setSelectedModel(existingParaphrase.model);
+        // Keep the app on free models by default (avoid Puter usage-limit errors).
+        setSelectedModel(
+          isFreeModelId(existingParaphrase.model)
+            ? existingParaphrase.model
+            : DEFAULT_AI_MODEL_ID
+        );
       }
     }
   }, [selectedBookId, extractedText, existingParaphrase]);
@@ -168,32 +279,77 @@ export default function ParaphrasePage() {
       return;
     }
 
+    if (isApiFreeLlm && isCoolingDown) {
+      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before paraphrasing again.`);
+      return;
+    }
+
     setIsParaphrasing(true);
     setHasCopied(false);
 
     try {
-      const response = await chatWithAI(
-        [
-          {
-            role: "user",
-            content: `Paraphrase the following text into clear, natural, conversational English. Make it easy to understand while preserving all the important information and meaning. Remove any AI-generated formality or complexity and make it sound more human and accessible.
+      // Fewer calls helps with rate/usage limits.
+      const MAX_CHARS_PER_CHUNK = 8000;
+      const chunks = splitTextIntoChunks(inputText, MAX_CHARS_PER_CHUNK);
+      if (chunks.length === 0) throw new Error("No text to paraphrase");
 
-IMPORTANT: Do not add any notes, comments, or disclaimers about the text being cut off or incomplete. Just paraphrase what is provided.
+      let modelToUse = selectedModel;
+      const parts: string[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const toastId = toast.loading(`Paraphrasing part ${i + 1}/${chunks.length}...`);
+        try {
+          const prompt = `Paraphrase the following text into clear, natural, conversational English. Make it easy to understand while preserving all the important information and meaning. Remove any AI-generated formality or complexity and make it sound more human and accessible.
 
-Text to paraphrase:
-${inputText}
+IMPORTANT: Do not add any notes, comments, disclaimers, or bracketed meta text (like [Note: ...]). Just output the paraphrased content.
 
-Paraphrased version:`,
-          },
-        ],
-        { model: selectedModel }
-      );
+Text to paraphrase (part ${i + 1} of ${chunks.length}):
+${chunks[i]}
 
-      const paraphrased = (response.text as string) || "";
-      if (!paraphrased) {
-        throw new Error("Failed to generate paraphrased text");
+Paraphrased version:`;
+
+          const runChunk = async (allowFallback: boolean): Promise<string> => {
+            if (modelToUse === "apifreellm-free") {
+              setLastApiCallAtMs(Date.now());
+            }
+            const response = await chatWithAI(
+              [{ role: "user", content: prompt }],
+              { model: modelToUse, max_tokens: 1200 }
+            );
+
+            const raw = (response.text as string) || "";
+            if (isUsageLimitMessage(raw)) {
+              // Auto-fallback from Puter to the free default model.
+              if (allowFallback && !isFreeModelId(modelToUse)) {
+                modelToUse = DEFAULT_AI_MODEL_ID;
+                setSelectedModel(DEFAULT_AI_MODEL_ID);
+                return await runChunk(false);
+              }
+              throw new Error("AI usage limit reached");
+            }
+
+            // ApiFreeLLM free API rate limit (1 req / 5 seconds) can be returned as text.
+            if (isApiFreeLlmRateLimitMessage(raw)) {
+              const wait = parseApiFreeLlmWaitSeconds(raw) ?? 5;
+              throw new Error(`Rate limit exceeded. Please wait ${wait} seconds.`);
+            }
+
+            return sanitizeParaphraseOutput(raw);
+          };
+
+          const part = await runChunk(true);
+          if (!part) throw new Error("Empty paraphrase returned");
+          parts.push(part);
+
+          // Respect ApiFreeLLM free API rate limit: 1 request per 5 seconds.
+          if (modelToUse === "apifreellm-free" && i < chunks.length - 1) {
+            await new Promise((r) => setTimeout(r, 5200));
+          }
+        } finally {
+          toast.dismiss(toastId);
+        }
       }
 
+      const paraphrased = sanitizeParaphraseOutput(parts.join("\n\n"));
       setParaphrasedText(paraphrased);
 
       // Save to database
@@ -202,15 +358,21 @@ Paraphrased version:`,
         bookId: selectedBookId,
         originalText: inputText,
         paraphrasedText: paraphrased,
-        model: selectedModel,
+        model: modelToUse,
       });
       
       setSavedParaphraseId(id);
       toast.success("Text paraphrased and saved successfully");
     } catch (error: any) {
-      const msg = error?.message || "Failed to paraphrase text";
-      toast.error(msg);
-      console.error("Paraphrase error:", error);
+      const msg = String(error?.message || "Failed to paraphrase text");
+      if (/usage limit/i.test(msg)) {
+        toast.error("AI usage limit hit. Switched to the free model; please try again.");
+      } else if (/rate limit/i.test(msg)) {
+        toast.error(msg);
+      } else {
+        toast.error(msg);
+        console.error("Paraphrase error:", error);
+      }
     } finally {
       setIsParaphrasing(false);
     }
@@ -227,32 +389,73 @@ Paraphrased version:`,
       return;
     }
 
+    if (isApiFreeLlm && isCoolingDown) {
+      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before regenerating again.`);
+      return;
+    }
+
     setIsParaphrasing(true);
     setHasCopied(false);
 
     try {
-      const response = await chatWithAI(
-        [
-          {
-            role: "user",
-            content: `Paraphrase the following text into clear, natural, conversational English. Use a different approach than before - make it sound fresh and use alternative word choices while keeping the same meaning. Make it easy to understand and sound more human.
+      const MAX_CHARS_PER_CHUNK = 8000;
+      const chunks = splitTextIntoChunks(inputText, MAX_CHARS_PER_CHUNK);
+      if (chunks.length === 0) throw new Error("No text to paraphrase");
 
-IMPORTANT: Do not add any notes, comments, or disclaimers about the text being cut off or incomplete. Just paraphrase what is provided.
+      let modelToUse = selectedModel;
+      const parts: string[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const toastId = toast.loading(`Regenerating part ${i + 1}/${chunks.length}...`);
+        try {
+          const prompt = `Paraphrase the following text into clear, natural, conversational English. Use a different approach than before - make it sound fresh and use alternative word choices while keeping the same meaning. Make it easy to understand and sound more human.
 
-Text to paraphrase:
-${inputText}
+IMPORTANT: Do not add any notes, comments, disclaimers, or bracketed meta text (like [Note: ...]). Just output the paraphrased content.
 
-New paraphrased version:`,
-          },
-        ],
-        { model: selectedModel }
-      );
+Text to paraphrase (part ${i + 1} of ${chunks.length}):
+${chunks[i]}
 
-      const paraphrased = (response.text as string) || "";
-      if (!paraphrased) {
-        throw new Error("Failed to regenerate paraphrased text");
+New paraphrased version:`;
+
+          const runChunk = async (allowFallback: boolean): Promise<string> => {
+            if (modelToUse === "apifreellm-free") {
+              setLastApiCallAtMs(Date.now());
+            }
+            const response = await chatWithAI(
+              [{ role: "user", content: prompt }],
+              { model: modelToUse, max_tokens: 1200 }
+            );
+
+            const raw = (response.text as string) || "";
+            if (isUsageLimitMessage(raw)) {
+              if (allowFallback && !isFreeModelId(modelToUse)) {
+                modelToUse = DEFAULT_AI_MODEL_ID;
+                setSelectedModel(DEFAULT_AI_MODEL_ID);
+                return await runChunk(false);
+              }
+              throw new Error("AI usage limit reached");
+            }
+
+            if (isApiFreeLlmRateLimitMessage(raw)) {
+              const wait = parseApiFreeLlmWaitSeconds(raw) ?? 5;
+              throw new Error(`Rate limit exceeded. Please wait ${wait} seconds.`);
+            }
+
+            return sanitizeParaphraseOutput(raw);
+          };
+
+          const part = await runChunk(true);
+          if (!part) throw new Error("Empty paraphrase returned");
+          parts.push(part);
+
+          if (modelToUse === "apifreellm-free" && i < chunks.length - 1) {
+            await new Promise((r) => setTimeout(r, 5200));
+          }
+        } finally {
+          toast.dismiss(toastId);
+        }
       }
 
+      const paraphrased = sanitizeParaphraseOutput(parts.join("\n\n"));
       setParaphrasedText(paraphrased);
 
       // Update database
@@ -261,15 +464,21 @@ New paraphrased version:`,
         bookId: selectedBookId,
         originalText: inputText,
         paraphrasedText: paraphrased,
-        model: selectedModel,
+        model: modelToUse,
       });
       
       setSavedParaphraseId(id);
       toast.success("Text regenerated and updated successfully");
     } catch (error: any) {
-      const msg = error?.message || "Failed to regenerate text";
-      toast.error(msg);
-      console.error("Regenerate error:", error);
+      const msg = String(error?.message || "Failed to regenerate text");
+      if (/usage limit/i.test(msg)) {
+        toast.error("AI usage limit hit. Switched to the free model; please try again.");
+      } else if (/rate limit/i.test(msg)) {
+        toast.error(msg);
+      } else {
+        toast.error(msg);
+        console.error("Regenerate error:", error);
+      }
     } finally {
       setIsParaphrasing(false);
     }
@@ -439,13 +648,15 @@ New paraphrased version:`,
                       variant="default"
                       className="w-full"
                       onClick={handleRegenerate}
-                      disabled={isParaphrasing}
+                      disabled={isParaphrasing || isCoolingDown}
                     >
                       {isParaphrasing ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Regenerating...
                         </>
+                      ) : isCoolingDown ? (
+                        <span className="tabular-nums">Wait {cooldownSecondsLeft || 5}s</span>
                       ) : (
                         <>
                           <RefreshCw className="mr-2 h-4 w-4" />
@@ -496,13 +707,13 @@ New paraphrased version:`,
               </CardHeader>
               <CardContent className="p-0">
                 <div className="flex flex-col h-[calc(100vh-20rem)]">
-                  <ScrollArea className="flex-1">
-                    <div className="p-4">
+                  <ScrollArea className="flex-1 min-h-0">
+                    <div className="h-full p-4">
                       <Textarea
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         placeholder="Text will auto-load when you select a document... You can also paste your own text here."
-                        className="min-h-[calc(100vh-26rem)] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
+                        className="h-full min-h-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full"
                       />
                     </div>
                   </ScrollArea>
@@ -510,13 +721,15 @@ New paraphrased version:`,
                     <Button 
                       className="w-full" 
                       onClick={handleParaphrase}
-                      disabled={isParaphrasing || !inputText.trim()}
+                      disabled={isParaphrasing || isCoolingDown || !inputText.trim()}
                     >
                       {isParaphrasing ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Paraphrasing...
                         </>
+                      ) : isCoolingDown ? (
+                        <span className="tabular-nums">Wait {cooldownSecondsLeft || 5}s</span>
                       ) : (
                         <>
                           <Wand2 className="mr-2 h-4 w-4" />
@@ -557,8 +770,9 @@ New paraphrased version:`,
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-18rem)] p-4">
+              <CardContent className="p-0 overflow-hidden">
+                <ScrollArea className="h-[calc(100vh-18rem)]">
+                  <div className="p-4 max-w-full">
                   {!paraphrasedText ? (
                     <div className="h-full flex items-center justify-center">
                       <EmptyState
@@ -568,12 +782,13 @@ New paraphrased version:`,
                       />
                     </div>
                   ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <div className="text-sm leading-relaxed">
+                    <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
                         {renderMarkdown(paraphrasedText)}
                       </div>
                     </div>
                   )}
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>

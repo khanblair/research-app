@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -22,23 +22,57 @@ import {
   Sparkles,
 } from "lucide-react";
 import { chatWithAI } from "@/lib/puter";
-import { AI_MODELS, getModelById } from "@/lib/ai-models";
+import { AI_MODELS, DEFAULT_AI_MODEL_ID, getModelById, isApiFreeLlmModelId } from "@/lib/ai-models";
+import { isApiFreeLlmRateLimitMessage, parseApiFreeLlmWaitSeconds } from "@/lib/apifreellm";
 import { toast } from "sonner";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ChatMessage } from "@/components/ai/ChatMessage";
 import { useSearchParams } from "next/navigation";
 
-export default function ChatPage() {
+function ChatPageContent() {
   const searchParams = useSearchParams();
   const bookIdFromUrl = searchParams.get("bookId");
+  const sessionIdFromUrl = searchParams.get("sessionId");
   
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
   const [additionalBookIds, setAdditionalBookIds] = useState<Id<"books">[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<Id<"chatSessions"> | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>(AI_MODELS[0].id);
+  // Default to free ApiFreeLLM to avoid Puter usage limits
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_AI_MODEL_ID);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
+
+  const isApiFreeLlm = useMemo(() => isApiFreeLlmModelId(selectedModel), [selectedModel]);
+  const isCoolingDown = useMemo(() => {
+    if (!isApiFreeLlm) return false;
+    if (!cooldownUntilMs) return false;
+    return Date.now() < cooldownUntilMs;
+  }, [cooldownUntilMs, isApiFreeLlm]);
+
+  useEffect(() => {
+    if (!isApiFreeLlm) {
+      setCooldownUntilMs(null);
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    if (!cooldownUntilMs) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      const msLeft = cooldownUntilMs - Date.now();
+      setCooldownSecondsLeft(Math.max(0, Math.ceil(msLeft / 1000)));
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [cooldownUntilMs, isApiFreeLlm]);
 
   const books = useQuery(api.books.list);
   
@@ -55,6 +89,18 @@ export default function ChatPage() {
     api.chatSessions.list,
     selectedBookId ? { bookId: selectedBookId } : "skip"
   );
+
+  // Set session from URL parameter once sessions are loaded.
+  useEffect(() => {
+    if (!sessionIdFromUrl) return;
+    if (!sessions) return;
+    if (selectedSessionId) return;
+
+    const sessionExists = sessions.some((s) => s._id === sessionIdFromUrl);
+    if (sessionExists) {
+      setSelectedSessionId(sessionIdFromUrl as Id<"chatSessions">);
+    }
+  }, [sessionIdFromUrl, sessions, selectedSessionId]);
   const currentSession = useQuery(
     api.chatSessions.get,
     selectedSessionId ? { id: selectedSessionId } : "skip"
@@ -139,11 +185,22 @@ export default function ChatPage() {
   const handleSend = async () => {
     if (!input.trim() || isLoading || !selectedSessionId) return;
 
+    if (isApiFreeLlm && isCoolingDown) {
+      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before sending another message.`);
+      return;
+    }
+
     setIsLoading(true);
     const userMessage = input.trim();
     setInput("");
 
     try {
+      // ApiFreeLLM free API is rate-limited: 1 request / 5 seconds.
+      // Start cooldown immediately to prevent rapid consecutive sends.
+      if (isApiFreeLlm) {
+        setCooldownUntilMs(Date.now() + 5200);
+      }
+
       // Add user message to session
       await addMessage({
         sessionId: selectedSessionId,
@@ -177,11 +234,20 @@ export default function ChatPage() {
     } catch (error: any) {
       const errorMsg = error?.message || "Unknown error";
       console.error("Chat error:", errorMsg, error);
-      toast.error(`Chat error: ${errorMsg}. Make sure you're logged into Puter.`);
+      if (isApiFreeLlm && isApiFreeLlmRateLimitMessage(errorMsg)) {
+        const wait = parseApiFreeLlmWaitSeconds(errorMsg);
+        toast.error(`Rate limit exceeded. Please wait ${wait ?? 5} seconds and try again.`);
+      } else if (isApiFreeLlm && /internal server error/i.test(errorMsg)) {
+        toast.error("ApiFreeLLM is temporarily unavailable. Please wait 5 seconds and try again.");
+      } else {
+        toast.error(`Chat error: ${errorMsg}`);
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  // (rest of component unchanged)
 
   if (books === undefined) {
     return <LoadingSpinner />;
@@ -483,9 +549,11 @@ export default function ChatPage() {
                         rows={2}
                         disabled={isLoading}
                       />
-                      <Button onClick={handleSend} disabled={isLoading || !input.trim()}>
+                      <Button onClick={handleSend} disabled={isLoading || isCoolingDown || !input.trim()}>
                         {isLoading ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isCoolingDown ? (
+                          <span className="text-xs tabular-nums">{cooldownSecondsLeft || 5}s</span>
                         ) : (
                           <Send className="h-4 w-4" />
                         )}
@@ -499,5 +567,13 @@ export default function ChatPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <ChatPageContent />
+    </Suspense>
   );
 }

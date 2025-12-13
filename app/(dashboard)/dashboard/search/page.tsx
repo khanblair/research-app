@@ -84,7 +84,7 @@ function SearchContent() {
           bookTitle: book?.title,
           tags: note.tags,
           createdAt: note.createdAt,
-          href: `/dashboard/notes`,
+          href: `/dashboard/notes?bookId=${note.bookId}&noteId=${note._id}`,
         });
       }
     });
@@ -104,7 +104,7 @@ function SearchContent() {
           content: citation.formattedCitation.substring(0, 150) + "...",
           bookTitle: book?.title,
           createdAt: citation.createdAt,
-          href: `/dashboard/bibliography`,
+          href: `/dashboard/bibliography?bookId=${citation.bookId}`,
         });
       }
     });
@@ -125,7 +125,7 @@ function SearchContent() {
           content: preview + (preview.length === 100 ? "..." : ""),
           bookTitle: book?.title,
           createdAt: session.createdAt,
-          href: `/dashboard/chat`,
+          href: `/dashboard/chat?bookId=${session.bookId}&sessionId=${session._id}`,
         });
       }
     });

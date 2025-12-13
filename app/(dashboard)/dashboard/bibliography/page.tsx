@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -27,11 +27,55 @@ import Link from "next/link";
 import { chatWithAI } from "@/lib/puter";
 import { allCitationFormats, type CitationMetadata } from "@/lib/citation-formats";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
+import { isApiFreeLlmRateLimitMessage, parseApiFreeLlmWaitSeconds } from "@/lib/apifreellm";
+import {
+  AI_MODELS,
+  DEFAULT_AI_MODEL_ID,
+  getModelById,
+  isApiFreeLlmModelId,
+} from "@/lib/ai-models";
 
-export default function BibliographyPage() {
+function BibliographyPageContent() {
+  const searchParams = useSearchParams();
+  const bookIdFromUrl = searchParams.get("bookId");
+
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedStyle, setCopiedStyle] = useState<string | null>(null);
+  const [didApplyUrlSelection, setDidApplyUrlSelection] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_AI_MODEL_ID);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
+
+  const isApiFreeLlm = useMemo(() => isApiFreeLlmModelId(selectedModel), [selectedModel]);
+  const isCoolingDown = useMemo(() => {
+    if (!isApiFreeLlm) return false;
+    if (!cooldownUntilMs) return false;
+    return Date.now() < cooldownUntilMs;
+  }, [cooldownUntilMs, isApiFreeLlm]);
+
+  useEffect(() => {
+    if (!isApiFreeLlm) {
+      setCooldownUntilMs(null);
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    if (!cooldownUntilMs) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      const msLeft = cooldownUntilMs - Date.now();
+      setCooldownSecondsLeft(Math.max(0, Math.ceil(msLeft / 1000)));
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [cooldownUntilMs, isApiFreeLlm]);
 
   const books = useQuery(api.books.list);
   const citations = useQuery(api.bibliography.list);
@@ -50,9 +94,29 @@ export default function BibliographyPage() {
   const selectedBook = books?.find((b) => b._id === selectedBookId);
   const extractedText = extractedTextData?.fullText || null;
 
+  // Apply URL-based selection once data is available.
+  useEffect(() => {
+    if (didApplyUrlSelection) return;
+    if (!books) return;
+
+    if (bookIdFromUrl && !selectedBookId) {
+      const bookExists = books.some((b) => b._id === bookIdFromUrl);
+      if (bookExists) {
+        setSelectedBookId(bookIdFromUrl as Id<"books">);
+      }
+    }
+
+    setDidApplyUrlSelection(true);
+  }, [books, bookIdFromUrl, didApplyUrlSelection, selectedBookId]);
+
   const handleGenerateCitation = async () => {
     if (!selectedBookId || !selectedBook) {
       toast.error("Please select a book first");
+      return;
+    }
+
+    if (isApiFreeLlm && isCoolingDown) {
+      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before generating again.`);
       return;
     }
 
@@ -63,6 +127,7 @@ export default function BibliographyPage() {
 
     setIsGenerating(true);
     try {
+      if (isApiFreeLlm) setCooldownUntilMs(Date.now() + 5200);
       // Try to extract metadata using AI if we have extracted text
       let metadata: CitationMetadata = {
         title: selectedBook.title,
@@ -81,7 +146,7 @@ export default function BibliographyPage() {
             role: "user",
             content: `Analyze this document and extract bibliographic metadata. Return ONLY a JSON object with these fields: title, authors (array), publisher, year, edition, isbn, doi, url. If a field cannot be determined, omit it or set to null.\n\nDocument excerpt:\n${extractedText.slice(0, 3000)}`,
           },
-        ]);
+        ], { model: selectedModel });
 
         const aiText = (response.text as string) || "";
         
@@ -127,7 +192,12 @@ export default function BibliographyPage() {
       toast.success("Citation generated successfully");
     } catch (error: any) {
       const msg = error?.message || "Failed to generate citation";
-      toast.error(msg);
+      if (isApiFreeLlmRateLimitMessage(msg)) {
+        const wait = parseApiFreeLlmWaitSeconds(msg);
+        toast.error(`Rate limit exceeded. Please wait ${wait ?? 5} seconds and try again.`);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -220,6 +290,26 @@ export default function BibliographyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">AI Model</div>
+                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AI_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-xs text-muted-foreground">{model.provider}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">{getModelById(selectedModel).description}</p>
+                  </div>
+
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Title:</span>
@@ -244,13 +334,15 @@ export default function BibliographyPage() {
                   <Button
                     className="w-full"
                     onClick={handleGenerateCitation}
-                    disabled={isGenerating || !!existingCitation}
+                    disabled={isGenerating || isCoolingDown || !!existingCitation}
                   >
                     {isGenerating ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Generating...
                       </>
+                    ) : isCoolingDown ? (
+                      <span className="tabular-nums">Wait {cooldownSecondsLeft || 5}s</span>
                     ) : existingCitation ? (
                       <>
                         <Check className="mr-2 h-4 w-4" />
@@ -430,5 +522,13 @@ export default function BibliographyPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function BibliographyPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <BibliographyPageContent />
+    </Suspense>
   );
 }

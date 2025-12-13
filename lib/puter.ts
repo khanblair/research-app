@@ -5,6 +5,14 @@
 // To avoid that, do NOT import the SDK at module scope; lazy-load it in the browser and
 // reuse a global singleton (window.puter) when available.
 
+import { generateWithMlvoca, convertChatMessagesToPrompt } from './mlvoca';
+import { DEFAULT_AI_MODEL_ID, isGrokModelId } from './ai-models';
+import {
+  convertChatMessagesToSingleMessage,
+  generateWithApiFreeLlm,
+} from './apifreellm';
+import { generateWithGrokChat } from './grok';
+
 type PuterClient = any;
 
 let puterClient: PuterClient | null = null;
@@ -55,15 +63,77 @@ export const getPuter = async (): Promise<PuterClient> => {
   return client;
 };
 
-// AI Chat with configurable model (defaults to Claude Sonnet 4.5)
+// AI Chat with configurable model (supports Puter + free providers)
 export const chatWithAI = async (
   messages: Array<{ role: string; content: string }>,
   options?: { 
     temperature?: number; 
     max_tokens?: number;
-    model?: string; // Support different models: 'claude-sonnet-4.5', 'gpt-4', 'gpt-4-turbo', etc.
+    model?: string; // Support different models: 'claude-sonnet-4.5', 'gpt-4', 'deepseek-r1:1.5b', 'tinyllama', etc.
   }
 ) => {
+  // Default to a free model (ApiFreeLLM) to avoid Puter usage limits.
+  const modelId = options?.model || DEFAULT_AI_MODEL_ID;
+
+  // Grok (xAI) models (server-side proxy using GROK_API_KEY)
+  if (isGrokModelId(modelId)) {
+    try {
+      const response = await generateWithGrokChat(
+        messages.map((m) => ({
+          role: (m.role as any) || "user",
+          content: m.content,
+        })),
+        {
+          model: modelId,
+          temperature: options?.temperature,
+          max_tokens: options?.max_tokens,
+        }
+      );
+      return { text: response };
+    } catch (error: any) {
+      console.error('Grok API error:', error);
+      throw new Error(`Grok failed: ${error.message}`);
+    }
+  }
+
+  // ApiFreeLLM.com free model (no API key required)
+  if (modelId === 'apifreellm-free') {
+    try {
+      const message = convertChatMessagesToSingleMessage(messages);
+      const response = await generateWithApiFreeLlm(message);
+      return { text: response };
+    } catch (error: any) {
+      console.error('ApiFreeLLM API error:', error);
+      throw new Error(`ApiFreeLLM failed: ${error.message}`);
+    }
+  }
+  
+  // Check if this is a mlvoca.com model (free API)
+  const isMlvocaModel = modelId === 'deepseek-r1:1.5b' || modelId === 'tinyllama';
+  
+  if (isMlvocaModel) {
+    // Use mlvoca.com Free LLM API
+    try {
+      const { prompt, system } = convertChatMessagesToPrompt(messages);
+      
+      const response = await generateWithMlvoca({
+        model: modelId,
+        prompt: prompt,
+        system: system,
+        options: {
+          temperature: options?.temperature ?? 0.7,
+          num_predict: options?.max_tokens ?? 2000,
+        },
+      });
+
+      return { text: response };
+    } catch (error: any) {
+      console.error('mlvoca API error:', error);
+      throw new Error(`mlvoca API failed: ${error.message}`);
+    }
+  }
+
+  // Use Puter.js for other models
   const client = await getPuter();
 
   try {
@@ -74,7 +144,7 @@ export const chatWithAI = async (
     }
 
     const response = await client.ai.chat(messages, {
-      model: options?.model || 'claude-sonnet-4.5',
+      model: modelId,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.max_tokens ?? 2000,
     });

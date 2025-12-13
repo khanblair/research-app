@@ -26,12 +26,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { chatWithAI } from "@/lib/puter";
-import { AI_MODELS, getModelById } from "@/lib/ai-models";
+import { AI_MODELS, DEFAULT_AI_MODEL_ID, getModelById } from "@/lib/ai-models";
 import { toast } from "sonner";
 
 export default function ParaphrasePage() {
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>(AI_MODELS[0].id);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_AI_MODEL_ID);
   const [inputText, setInputText] = useState("");
   const [paraphrasedText, setParaphrasedText] = useState("");
   const [isParaphrasing, setIsParaphrasing] = useState(false);

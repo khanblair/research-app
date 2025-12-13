@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactElement } from "react";
+import { useEffect, useMemo, useState, ReactElement, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -31,6 +31,14 @@ import {
 import Link from "next/link";
 import { chatWithAI } from "@/lib/puter";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
+import { isApiFreeLlmRateLimitMessage, parseApiFreeLlmWaitSeconds } from "@/lib/apifreellm";
+import {
+  AI_MODELS,
+  DEFAULT_AI_MODEL_ID,
+  getModelById,
+  isApiFreeLlmModelId,
+} from "@/lib/ai-models";
 
 // Render markdown with proper formatting (same as ChatMessage)
 const renderMarkdown = (text: string) => {
@@ -118,13 +126,50 @@ const formatInlineMarkdown = (text: string) => {
   return <>{parts}</>;
 };
 
-export default function NotesPage() {
+function NotesPageContent() {
+  const searchParams = useSearchParams();
+  const bookIdFromUrl = searchParams.get("bookId");
+  const noteIdFromUrl = searchParams.get("noteId");
+
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<Id<"notes"> | null>(null);
   const [noteContent, setNoteContent] = useState("");
   const [noteTags, setNoteTags] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [filterType, setFilterType] = useState<"all" | "manual" | "ai">("all");
+  const [didApplyUrlSelection, setDidApplyUrlSelection] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_AI_MODEL_ID);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
+
+  const isApiFreeLlm = useMemo(() => isApiFreeLlmModelId(selectedModel), [selectedModel]);
+  const isCoolingDown = useMemo(() => {
+    if (!isApiFreeLlm) return false;
+    if (!cooldownUntilMs) return false;
+    return Date.now() < cooldownUntilMs;
+  }, [cooldownUntilMs, isApiFreeLlm]);
+
+  useEffect(() => {
+    if (!isApiFreeLlm) {
+      setCooldownUntilMs(null);
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    if (!cooldownUntilMs) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      const msLeft = cooldownUntilMs - Date.now();
+      setCooldownSecondsLeft(Math.max(0, Math.ceil(msLeft / 1000)));
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [cooldownUntilMs, isApiFreeLlm]);
 
   const books = useQuery(api.books.list);
   const allNotes = useQuery(
@@ -142,6 +187,21 @@ export default function NotesPage() {
   const selectedBook = books?.find((b) => b._id === selectedBookId);
   const extractedText = extractedTextData?.fullText || null;
 
+  // Apply URL-based selection once data is available.
+  useEffect(() => {
+    if (didApplyUrlSelection) return;
+    if (!books) return;
+
+    if (bookIdFromUrl && !selectedBookId) {
+      const bookExists = books.some((b) => b._id === bookIdFromUrl);
+      if (bookExists) {
+        setSelectedBookId(bookIdFromUrl as Id<"books">);
+      }
+    }
+
+    setDidApplyUrlSelection(true);
+  }, [books, bookIdFromUrl, didApplyUrlSelection, selectedBookId]);
+
   // Filter notes
   const filteredNotes = allNotes?.filter((note) => {
     if (filterType === "manual") return !note.isAiGenerated;
@@ -150,6 +210,18 @@ export default function NotesPage() {
   });
 
   const selectedNote = filteredNotes?.find((n) => n._id === selectedNoteId);
+
+  // If noteId is provided, select it after notes are loaded.
+  useEffect(() => {
+    if (!noteIdFromUrl) return;
+    if (!filteredNotes) return;
+    if (selectedNoteId) return;
+
+    const noteExists = filteredNotes.some((n) => n._id === noteIdFromUrl);
+    if (noteExists) {
+      setSelectedNoteId(noteIdFromUrl as Id<"notes">);
+    }
+  }, [filteredNotes, noteIdFromUrl, selectedNoteId]);
 
   const handleCreateNote = async () => {
     if (!selectedBookId || !noteContent.trim()) {
@@ -179,6 +251,11 @@ export default function NotesPage() {
       return;
     }
 
+    if (isApiFreeLlm && isCoolingDown) {
+      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before generating again.`);
+      return;
+    }
+
     if (!extractedText) {
       toast.error("Please extract text from this book first (go to Text Extraction)");
       return;
@@ -186,12 +263,13 @@ export default function NotesPage() {
 
     setIsGenerating(true);
     try {
+      if (isApiFreeLlm) setCooldownUntilMs(Date.now() + 5200);
       const response = await chatWithAI([
         {
           role: "user",
           content: `Analyze this document and create comprehensive, well-structured notes covering the main topics, key points, and important details. Format as bullet points.\n\nDocument:\n${extractedText.slice(0, 10000)}`,
         },
-      ]);
+      ], { model: selectedModel });
 
       const summary = (response.text as string) || "";
       if (!summary) {
@@ -209,7 +287,12 @@ export default function NotesPage() {
       toast.success("AI notes generated successfully");
     } catch (error: any) {
       const msg = error?.message || "Failed to generate notes";
-      toast.error(msg);
+      if (isApiFreeLlmRateLimitMessage(msg)) {
+        const wait = parseApiFreeLlmWaitSeconds(msg);
+        toast.error(`Rate limit exceeded. Please wait ${wait ?? 5} seconds and try again.`);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -221,14 +304,20 @@ export default function NotesPage() {
       return;
     }
 
+    if (isApiFreeLlm && isCoolingDown) {
+      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before generating again.`);
+      return;
+    }
+
     setIsGenerating(true);
     try {
+      if (isApiFreeLlm) setCooldownUntilMs(Date.now() + 5200);
       const response = await chatWithAI([
         {
           role: "user",
           content: `Extract the most important key points and takeaways from this document. Present as a numbered list of actionable insights.\n\nDocument:\n${extractedText.slice(0, 10000)}`,
         },
-      ]);
+      ], { model: selectedModel });
 
       const keyPoints = (response.text as string) || "";
       if (!keyPoints) throw new Error("Failed to generate key points");
@@ -243,7 +332,13 @@ export default function NotesPage() {
 
       toast.success("Key points generated successfully");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to generate key points");
+      const msg = error?.message || "Failed to generate key points";
+      if (isApiFreeLlmRateLimitMessage(msg)) {
+        const wait = parseApiFreeLlmWaitSeconds(msg);
+        toast.error(`Rate limit exceeded. Please wait ${wait ?? 5} seconds and try again.`);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -347,16 +442,39 @@ export default function NotesPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs">AI Model</Label>
+                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AI_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-xs text-muted-foreground">{model.provider}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">{getModelById(selectedModel).description}</p>
+                  </div>
                   <Button
                     className="w-full"
                     variant="outline"
                     onClick={handleGenerateSummary}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isCoolingDown}
                   >
                     {isGenerating ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Generating...
+                      </>
+                    ) : isCoolingDown ? (
+                      <>
+                        <span className="tabular-nums">Wait {cooldownSecondsLeft || 5}s</span>
                       </>
                     ) : (
                       <>
@@ -369,10 +487,16 @@ export default function NotesPage() {
                     className="w-full"
                     variant="outline"
                     onClick={handleGenerateKeyPoints}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isCoolingDown}
                   >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Key Points
+                    {isCoolingDown ? (
+                      <span className="tabular-nums">Wait {cooldownSecondsLeft || 5}s</span>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Key Points
+                      </>
+                    )}
                   </Button>
                   {!extractedText && (
                     <p className="text-xs text-amber-600 dark:text-amber-500">
@@ -590,5 +714,13 @@ export default function NotesPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function NotesPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <NotesPageContent />
+    </Suspense>
   );
 }

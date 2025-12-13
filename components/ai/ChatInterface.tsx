@@ -59,7 +59,7 @@ export function ChatInterface({ bookId, context }: ChatInterfaceProps) {
       console.error("Chat error:", errorMsg, error);
       const errorMessage: Message = {
         role: "assistant",
-        content: `Sorry, I encountered an error: ${errorMsg}. Please make sure you're logged into Puter.`,
+        content: `Sorry, I encountered an error: ${errorMsg}. If this is a rate limit, please wait a few seconds and try again.`,
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {

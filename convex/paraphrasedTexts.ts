@@ -17,6 +17,7 @@ export const save = mutation({
     if (args.id) {
       // Update existing
       await ctx.db.patch(args.id, {
+        originalText: args.originalText,
         paraphrasedText: args.paraphrasedText,
         model: args.model,
         updatedAt: now,
