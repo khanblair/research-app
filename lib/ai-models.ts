@@ -15,7 +15,7 @@ export const AI_MODELS = [
   {
     id: "claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
-    description: "Most capable, best for complex tasks",
+    description: "Most best for complex tasks",
     provider: "Anthropic (Puter)",
   },
   {

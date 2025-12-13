@@ -36,6 +36,12 @@ export function Header() {
             >
               About
             </Link>
+            <Link
+              href="/privacy"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Privacy
+            </Link>
           </nav>
         </div>
 
@@ -80,6 +86,13 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               About
+            </Link>
+            <Link
+              href="/privacy"
+              className="text-sm font-medium text-muted-foreground"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Privacy
             </Link>
             <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
               <Button className="w-full">Get Started</Button>
