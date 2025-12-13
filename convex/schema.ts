@@ -37,6 +37,7 @@ export default defineSchema({
     metadata: v.optional(v.any()),
   })
     .index("by_user", ["userId"])
+    .index("by_user_storage", ["userId", "storageId"])
     .index("by_upload_time", ["uploadedAt"])
     .index("by_last_opened", ["lastOpenedAt"])
     .searchIndex("search_books", {

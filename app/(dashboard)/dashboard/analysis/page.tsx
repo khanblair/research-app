@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/layout/dashboard/Breadcrumbs";
@@ -22,6 +22,7 @@ import { loadPDF, extractTextFromPDF } from "@/lib/pdf-utils";
 import { toast } from "sonner";
 import { performOCR } from "@/lib/ocr";
 import { useConvexUser } from "@/hooks/use-convex-user";
+import { useSearchParams } from "next/navigation";
 
 export default function AnalysisPage() {
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
@@ -31,11 +32,26 @@ export default function AnalysisPage() {
   const [isOcrRunning, setIsOcrRunning] = useState(false);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
 
+  const searchParams = useSearchParams();
+
   const { user: convexUser } = useConvexUser();
   const books = useQuery(
     api.books.list,
     convexUser ? { userId: convexUser._id } : "skip"
   );
+
+  const bookIdFromUrl = useMemo(() => {
+    const raw = searchParams.get("bookId");
+    return raw ? (raw as Id<"books">) : null;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!bookIdFromUrl) return;
+    if (!books || books.length === 0) return;
+    const exists = books.some((b) => b._id === bookIdFromUrl);
+    if (!exists) return;
+    setSelectedBookId((prev) => (prev ?? bookIdFromUrl));
+  }, [bookIdFromUrl, books]);
   const selectedBook = books?.find((b) => b._id === selectedBookId);
   const existingExtraction = useQuery(
     api.extractedTexts.getByBook,

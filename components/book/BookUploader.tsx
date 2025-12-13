@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,12 @@ import { toast } from "sonner";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useConvexUser } from "@/hooks/use-convex-user";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface UploadedFile {
+  key: string;
   file: File;
   progress: number;
   status: "pending" | "uploading" | "completed" | "error";
@@ -27,12 +31,98 @@ export function BookUploader() {
   const [urlInput, setUrlInput] = useState("");
   const [urlTitle, setUrlTitle] = useState("");
   const [isUrlSaving, setIsUrlSaving] = useState(false);
+  const [lastUploadedBookId, setLastUploadedBookId] = useState<Id<"books"> | null>(null);
 
   const { user: convexUser, isLoading: convexUserLoading } = useConvexUser();
+  const router = useRouter();
+
+  // Prevent duplicate uploads if the drop event fires twice in dev (StrictMode)
+  // or the user re-selects the same file while an upload is in progress.
+  const inFlightKeysRef = useRef<Set<string>>(new Set());
+  const uploadPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
+  const uploadIntervalsRef = useRef<Map<string, number>>(new Map());
+  const filesRef = useRef<UploadedFile[]>([]);
 
   const generateUploadUrl = useMutation(api.books.generateUploadUrl);
   const createBookWithStorage = useMutation(api.books.createWithStorage);
   const createBook = useMutation(api.books.create);
+
+  const makeFileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
+
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
+  const startUpload = useCallback(
+    (fileKey: string, file: File) => {
+      if (uploadPromisesRef.current.has(fileKey)) return;
+
+      // Mark as uploading immediately.
+      setFiles((prev) => {
+        const idx = prev.findIndex((f) => f.key === fileKey);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], status: "uploading", progress: 0 };
+        return updated;
+      });
+
+      // UI-only progress indicator up to 90% while the real upload runs.
+      const existingInterval = uploadIntervalsRef.current.get(fileKey);
+      if (!existingInterval) {
+        const intervalId = window.setInterval(() => {
+          setFiles((prev) => {
+            const idx = prev.findIndex((f) => f.key === fileKey);
+            if (idx === -1) return prev;
+            const current = prev[idx];
+            if (current.status !== "uploading") return prev;
+            if (current.progress >= 90) return prev;
+            const updated = [...prev];
+            updated[idx] = { ...current, progress: Math.min(90, current.progress + 5) };
+            return updated;
+          });
+        }, 200);
+        uploadIntervalsRef.current.set(fileKey, intervalId);
+      }
+
+      const p = (async () => {
+        try {
+          const bookId = await persistBook(file);
+          setLastUploadedBookId(bookId);
+          setFiles((prev) => {
+            const idx = prev.findIndex((f) => f.key === fileKey);
+            if (idx === -1) return prev;
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], status: "completed", progress: 100 };
+            return updated;
+          });
+          toast.success(`${file.name} uploaded successfully`);
+        } catch (err: any) {
+          console.error("Failed to save book", err);
+          setFiles((prev) => {
+            const idx = prev.findIndex((f) => f.key === fileKey);
+            if (idx === -1) return prev;
+            const updated = [...prev];
+            updated[idx] = {
+              ...updated[idx],
+              status: "error",
+              error: err?.message || "Failed to save book",
+            };
+            return updated;
+          });
+          toast.error(err?.message || "Failed to save book");
+        } finally {
+          const id = uploadIntervalsRef.current.get(fileKey);
+          if (id) window.clearInterval(id);
+          uploadIntervalsRef.current.delete(fileKey);
+          inFlightKeysRef.current.delete(fileKey);
+          uploadPromisesRef.current.delete(fileKey);
+        }
+      })();
+
+      uploadPromisesRef.current.set(fileKey, p);
+    },
+    []
+  );
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (convexUserLoading || !convexUser) {
@@ -40,19 +130,38 @@ export function BookUploader() {
       return;
     }
 
-    const newFiles = acceptedFiles.map((file) => ({
+    const seen = new Set<string>();
+    const toAdd: File[] = [];
+    for (const file of acceptedFiles) {
+      const key = makeFileKey(file);
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      if (inFlightKeysRef.current.has(key)) continue;
+      // Also avoid duplicates already in the UI list.
+      if (filesRef.current.some((f) => f.key === key)) continue;
+
+      inFlightKeysRef.current.add(key);
+      toAdd.push(file);
+    }
+
+    if (toAdd.length === 0) {
+      toast.info("That file is already uploading");
+      return;
+    }
+
+    const newFiles = toAdd.map((file) => ({
+      key: makeFileKey(file),
       file,
       progress: 0,
-      status: "pending" as const,
+      status: "uploading" as const,
     }));
 
     setFiles((prev) => [...prev, ...newFiles]);
 
-    // Simulate upload then persist to Convex storage
-    newFiles.forEach((uploadFile, index) => {
-      simulateUpload(files.length + index);
-    });
-  }, [convexUser, convexUserLoading, files.length]);
+    // Persist immediately (and show progress while it runs).
+    newFiles.forEach((f) => startUpload(f.key, f.file));
+  }, [convexUser, convexUserLoading, startUpload]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -65,39 +174,7 @@ export function BookUploader() {
     maxSize: 100 * 1024 * 1024, // 100MB
   });
 
-  const simulateUpload = (index: number) => {
-    setFiles((prev) => {
-      const updated = [...prev];
-      updated[index].status = "uploading";
-      return updated;
-    });
-
-    const interval = setInterval(() => {
-      setFiles((prev) => {
-        const updated = [...prev];
-        if (updated[index].progress >= 100) {
-          updated[index].status = "completed";
-          updated[index].progress = 100;
-          clearInterval(interval);
-          // Persist book record once upload completes
-          persistBook(updated[index].file)
-            .then(() => {
-              toast.success(`${updated[index].file.name} uploaded successfully`);
-            })
-            .catch((err) => {
-              console.error("Failed to save book", err);
-              toast.error("Failed to save book");
-              updated[index].status = "error";
-            });
-        } else {
-          updated[index].progress += 10;
-        }
-        return updated;
-      });
-    }, 200);
-  };
-
-  const persistBook = async (file: File) => {
+  const persistBook = async (file: File): Promise<Id<"books">> => {
     if (!convexUser) {
       throw new Error("User profile is still loading. Please try again.");
     }
@@ -121,7 +198,7 @@ export function BookUploader() {
 
     const { storageId } = (await res.json()) as { storageId: string };
 
-    await createBookWithStorage({
+    const bookId = await createBookWithStorage({
       userId: convexUser._id,
       title: file.name.replace(/\.[^/.]+$/, ""),
       authors: ["Unknown"],
@@ -135,10 +212,21 @@ export function BookUploader() {
       isbn: undefined,
       pageCount: undefined,
     });
+
+    return bookId as Id<"books">;
   };
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => {
+      const removed = prev[index];
+      if (removed) {
+        const id = uploadIntervalsRef.current.get(removed.key);
+        if (id) window.clearInterval(id);
+        uploadIntervalsRef.current.delete(removed.key);
+        inFlightKeysRef.current.delete(removed.key);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const getFileExtension = (filename: string) => {
@@ -185,7 +273,7 @@ export function BookUploader() {
       const title = (urlTitle || fileName.replace(/\.[^/.]+$/, "")).trim() || "Untitled";
 
       // Many sites block Content-Length via CORS; store 0.
-      await createBook({
+      const bookId = await createBook({
         userId: convexUser._id,
         title,
         authors: ["Unknown"],
@@ -200,12 +288,13 @@ export function BookUploader() {
         pageCount: undefined,
       });
 
+      setLastUploadedBookId(bookId as Id<"books">);
+
       toast.success("PDF URL added to your library");
       setUrlInput("");
       setUrlTitle("");
 
-      // Jump to analysis (user can extract + chat from there).
-      window.location.href = "/dashboard/analysis";
+      // Stay on the upload page so the user can choose next action.
     } catch (err: any) {
       console.error(err);
       toast.error(err?.message || "Failed to add URL");
@@ -216,6 +305,21 @@ export function BookUploader() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="secondary">
+          <Link href="/dashboard/library">View in Library</Link>
+        </Button>
+        <Button
+          onClick={() => {
+            if (!lastUploadedBookId) return;
+            router.push(`/dashboard/analysis?bookId=${lastUploadedBookId}`);
+          }}
+          disabled={!lastUploadedBookId}
+        >
+          Proceed to Extraction
+        </Button>
+      </div>
+
       <Tabs defaultValue="file">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="file" className="gap-2">

@@ -67,6 +67,18 @@ export const createWithStorage = mutation({
     pageCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Idempotency: if the client retries the mutation (or double-invokes in dev),
+    // avoid inserting a duplicate book for the same uploaded storage object.
+    const existing = await ctx.db
+      .query("books")
+      .withIndex("by_user_storage", (q) =>
+        q.eq("userId", args.userId).eq("storageId", args.storageId)
+      )
+      .unique();
+    if (existing) {
+      return existing._id;
+    }
+
     const fileUrl = await ctx.storage.getUrl(args.storageId);
     if (!fileUrl) {
       throw new Error("Failed to get file URL from storageId");
