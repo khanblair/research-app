@@ -19,8 +19,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: siteConfig.name,
-    template: `%s | ${siteConfig.name}`,
+    default: "Khan Store",
+    template: `%s | Khan Store`,
   },
   description: siteConfig.description,
   keywords: [
@@ -31,6 +31,9 @@ export const metadata: Metadata = {
     "bibliography",
     "paraphrasing",
   ],
+  icons: {
+    icon: "/images/favicon.png",
+  },
 };
 
 export default function RootLayout({
