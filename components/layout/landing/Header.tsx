@@ -5,9 +5,21 @@ import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { Menu } from "lucide-react";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Get page name from pathname
+  const getPageName = () => {
+    if (pathname === "/research-hub") return siteConfig.name;
+    if (pathname.startsWith("/research-hub/")) {
+      const pagePath = pathname.replace("/research-hub/", "");
+      return `${siteConfig.name} - ${pagePath.charAt(0).toUpperCase() + pagePath.slice(1)}`;
+    }
+    return siteConfig.name;
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -22,7 +34,7 @@ export function Header() {
         </button>
 
         <Link href="/research-hub" className="flex items-center space-x-2">
-          <span className="font-bold text-xl">{siteConfig.name}</span>
+          <span className="font-bold text-xl">{getPageName()}</span>
         </Link>
 
         <nav className="hidden md:flex gap-6">
