@@ -55,7 +55,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/dashboard"
+                  href="/sign-in"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Dashboard
