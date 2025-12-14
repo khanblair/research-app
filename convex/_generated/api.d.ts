@@ -11,8 +11,10 @@
 import type * as bibliography from "../bibliography.js";
 import type * as books from "../books.js";
 import type * as chatSessions from "../chatSessions.js";
+import type * as contact from "../contact.js";
 import type * as dashboard from "../dashboard.js";
 import type * as extractedTexts from "../extractedTexts.js";
+import type * as feedback from "../feedback.js";
 import type * as highlights from "../highlights.js";
 import type * as lib_utils from "../lib/utils.js";
 import type * as lib_validators from "../lib/validators.js";
@@ -31,8 +33,10 @@ declare const fullApi: ApiFromModules<{
   bibliography: typeof bibliography;
   books: typeof books;
   chatSessions: typeof chatSessions;
+  contact: typeof contact;
   dashboard: typeof dashboard;
   extractedTexts: typeof extractedTexts;
+  feedback: typeof feedback;
   highlights: typeof highlights;
   "lib/utils": typeof lib_utils;
   "lib/validators": typeof lib_validators;

@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Scan,
   Wand2,
+  Heart,
 } from "lucide-react";
 
 export const dashboardNav = [
@@ -58,6 +59,11 @@ export const dashboardNav = [
     title: "Search",
     href: "/dashboard/search",
     icon: Search,
+  },
+  {
+    title: "Feedback",
+    href: "/dashboard/feedback",
+    icon: Heart,
   },
   {
     title: "Settings",

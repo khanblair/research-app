@@ -178,4 +178,42 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_book", ["bookId"])
     .index("by_created_at", ["createdAt"]),
+
+  feedback: defineTable({
+    userId: v.id("users"),
+    rating: v.number(), // 1-5 stars
+    category: v.union(
+      v.literal("feature"),
+      v.literal("bug"),
+      v.literal("improvement"),
+      v.literal("other")
+    ),
+    message: v.string(),
+    email: v.optional(v.string()),
+    status: v.union(
+      v.literal("new"),
+      v.literal("reviewed"),
+      v.literal("resolved")
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
+
+  contactMessages: defineTable({
+    name: v.string(),
+    email: v.string(),
+    subject: v.string(),
+    message: v.string(),
+    status: v.union(
+      v.literal("new"),
+      v.literal("read"),
+      v.literal("replied")
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"])
+    .index("by_email", ["email"]),
 });
