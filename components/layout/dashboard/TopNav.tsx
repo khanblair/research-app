@@ -8,6 +8,7 @@ import { Search, Bell } from "lucide-react";
 import { UserMenu } from "@/components/layout/dashboard/UserMenu";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MobileNav } from "@/components/layout/dashboard/MobileNav";
+import Link from "next/link";
 
 export function TopNav() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +44,9 @@ export function TopNav() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" className="hidden md:inline-flex">
+            <Link href="/contact">Contact</Link>
+          </Button>
           <ThemeToggle />
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />

@@ -11,13 +11,21 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto max-w-7xl flex h-16 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-6 md:gap-10">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="font-bold text-xl">{siteConfig.name}</span>
-          </Link>
-          
-          <nav className="hidden md:flex gap-6">
+      <div className="container mx-auto max-w-7xl flex h-16 items-center gap-4 px-4 md:px-6">
+        <button
+          className="md:hidden"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+
+        <Link href="/" className="flex items-center space-x-2">
+          <span className="font-bold text-xl">{siteConfig.name}</span>
+        </Link>
+
+        <nav className="hidden md:flex gap-6">
             <Link
               href="/features"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -37,13 +45,20 @@ export function Header() {
               About
             </Link>
             <Link
+              href="/contact"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Contact
+            </Link>
+            <Link
               href="/privacy"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Privacy
             </Link>
-          </nav>
-        </div>
+        </nav>
+
+        <div className="flex-1" />
 
         <div className="hidden md:flex items-center gap-4">
           <Link href="/sign-in">
@@ -54,12 +69,6 @@ export function Header() {
           </Link>
         </div>
 
-        <button
-          className="md:hidden"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          <Menu className="h-6 w-6" />
-        </button>
       </div>
 
       {mobileMenuOpen && (
@@ -86,6 +95,13 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               About
+            </Link>
+            <Link
+              href="/contact"
+              className="text-sm font-medium text-muted-foreground"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Contact
             </Link>
             <Link
               href="/privacy"

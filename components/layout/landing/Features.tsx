@@ -112,10 +112,8 @@ export function Features() {
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
-              <motion.div key={index} variants={cardVariants} className="relative group">
-                {/* Animated gradient border */}
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-lg opacity-0 group-hover:opacity-75 blur transition duration-500 animate-gradient-rotate"></div>
-                <Card className="relative border-border hover:shadow-lg transition-all duration-300 h-full bg-card">
+              <motion.div key={index} variants={cardVariants}>
+                <Card className="animated-border-rainbow border-border hover:shadow-lg transition-all duration-300 h-full bg-card">
                   <CardHeader>
                     <motion.div
                       className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4"
