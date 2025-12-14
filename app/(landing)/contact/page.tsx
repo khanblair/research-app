@@ -46,29 +46,47 @@ export default function ContactPage() {
   };
 
   const cardVariants = {
-    hidden: { opacity: 0, y: 30 },
+    hidden: { opacity: 0, y: 50 },
     visible: {
       opacity: 1,
       y: 0,
       transition: {
-        duration: 0.5,
+        duration: 0.6,
+        ease: "easeOut"
       },
     },
   } as const;
 
   return (
-    <section className="py-20 md:py-32">
-      <div className="container mx-auto max-w-7xl px-4 md:px-6">
+    <section className="py-20 md:py-32 bg-gradient-to-b from-background via-muted/20 to-background relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+      <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-float"></div>
+      <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
+      
+      <div className="container mx-auto max-w-7xl px-4 md:px-6 relative z-10">
         <motion.div
           className="mx-auto max-w-3xl text-center mb-16"
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
+          <motion.div
+            className="inline-block mb-4 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            We're Here to Help
+          </motion.div>
+          
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl mb-6">
-            Get in Touch
+            Get in{" "}
+            <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient-x">
+              Touch
+            </span>
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-muted-foreground leading-relaxed">
             Have questions? We'd love to hear from you
           </p>
         </motion.div>
@@ -80,17 +98,17 @@ export default function ContactPage() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ staggerChildren: 0.1 }}
         >
-          <motion.div variants={cardVariants} className="relative group">
-            {/* Animated gradient border */}
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-lg opacity-0 group-hover:opacity-75 blur transition duration-500 animate-gradient-rotate"></div>
-            <Card className="relative border-border hover:shadow-lg transition-all duration-300 bg-card">
-              <CardHeader>
-                <CardTitle>Send us a message</CardTitle>
-                <CardDescription>
+          <motion.div variants={cardVariants} className="perspective-container">
+            <Card className="border-border hover:border-primary/50 transition-all duration-300 bg-card/50 backdrop-blur-sm overflow-hidden group relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              
+              <CardHeader className="relative z-10">
+                <CardTitle className="text-2xl">Send us a message</CardTitle>
+                <CardDescription className="text-base">
                   Fill out the form and we'll get back to you within 24 hours
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative z-10">
                 <form className="space-y-4" onSubmit={handleSubmit}>
                   <div className="space-y-2">
                     <Label htmlFor="name">Name</Label>
@@ -148,72 +166,84 @@ export default function ContactPage() {
           </motion.div>
 
           <div className="space-y-6">
-            <motion.div variants={cardVariants} className="relative group">
-              {/* Animated gradient border */}
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-lg opacity-0 group-hover:opacity-75 blur transition duration-500 animate-gradient-rotate"></div>
-              <Card className="relative border-border hover:shadow-lg transition-all duration-300 bg-card">
-                <CardContent className="pt-6">
+            <motion.div variants={cardVariants} className="perspective-container">
+              <Card className="border-border hover:border-primary/50 transition-all duration-300 bg-card/50 backdrop-blur-sm overflow-hidden group relative card-hover">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                
+                <CardContent className="pt-6 relative z-10">
                   <div className="flex items-start gap-4">
                     <motion.div
-                      className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                      className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
+                      whileHover={{ 
+                        rotate: [0, -10, 10, -10, 0],
+                        transition: { duration: 0.5 }
+                      }}
                     >
                       <Mail className="h-5 w-5 text-primary" />
                     </motion.div>
                     <div>
-                      <h3 className="font-semibold mb-1">Email</h3>
+                      <h3 className="font-semibold mb-1 text-lg">Email</h3>
                       <p className="text-sm text-muted-foreground">support@researchhub.com</p>
                       <p className="text-sm text-muted-foreground">We reply within 24 hours</p>
                     </div>
                   </div>
                 </CardContent>
+                
+                <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </Card>
             </motion.div>
 
-            <motion.div variants={cardVariants} className="relative group">
-              {/* Animated gradient border */}
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-lg opacity-0 group-hover:opacity-75 blur transition duration-500 animate-gradient-rotate"></div>
-              <Card className="relative border-border hover:shadow-lg transition-all duration-300 bg-card">
-                <CardContent className="pt-6">
+            <motion.div variants={cardVariants} className="perspective-container">
+              <Card className="border-border hover:border-primary/50 transition-all duration-300 bg-card/50 backdrop-blur-sm overflow-hidden group relative card-hover">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                
+                <CardContent className="pt-6 relative z-10">
                   <div className="flex items-start gap-4">
                     <motion.div
-                      className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                      className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
+                      whileHover={{ 
+                        rotate: [0, -10, 10, -10, 0],
+                        transition: { duration: 0.5 }
+                      }}
                     >
                       <Twitter className="h-5 w-5 text-primary" />
                     </motion.div>
                     <div>
-                      <h3 className="font-semibold mb-1">Twitter</h3>
+                      <h3 className="font-semibold mb-1 text-lg">Twitter</h3>
                       <p className="text-sm text-muted-foreground">@researchhub</p>
                       <p className="text-sm text-muted-foreground">Follow us for updates</p>
                     </div>
                   </div>
                 </CardContent>
+                
+                <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </Card>
             </motion.div>
 
-            <motion.div variants={cardVariants} className="relative group">
-              {/* Animated gradient border */}
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-lg opacity-0 group-hover:opacity-75 blur transition duration-500 animate-gradient-rotate"></div>
-              <Card className="relative border-border hover:shadow-lg transition-all duration-300 bg-card">
-                <CardContent className="pt-6">
+            <motion.div variants={cardVariants} className="perspective-container">
+              <Card className="border-border hover:border-primary/50 transition-all duration-300 bg-card/50 backdrop-blur-sm overflow-hidden group relative card-hover">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                
+                <CardContent className="pt-6 relative z-10">
                   <div className="flex items-start gap-4">
                     <motion.div
-                      className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                      className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
+                      whileHover={{ 
+                        rotate: [0, -10, 10, -10, 0],
+                        transition: { duration: 0.5 }
+                      }}
                     >
                       <MessageSquare className="h-5 w-5 text-primary" />
                     </motion.div>
                     <div>
-                      <h3 className="font-semibold mb-1">Live Chat</h3>
+                      <h3 className="font-semibold mb-1 text-lg">Live Chat</h3>
                       <p className="text-sm text-muted-foreground">Available 9am-5pm EST</p>
                       <p className="text-sm text-muted-foreground">Get instant help</p>
                     </div>
                   </div>
                 </CardContent>
+                
+                <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </Card>
             </motion.div>
           </div>

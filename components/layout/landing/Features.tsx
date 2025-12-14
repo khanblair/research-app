@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BookOpen,
@@ -9,7 +11,8 @@ import {
   Sparkles,
   FileText,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef } from "react";
 
 const features = [
   {
@@ -63,12 +66,21 @@ const features = [
 ];
 
 export function Features() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start end", "end start"]
+  });
+
+  const y = useTransform(scrollYProgress, [0, 1], [100, -100]);
+  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1,
+        staggerChildren: 0.08,
       },
     },
   } as const;
@@ -80,13 +92,20 @@ export function Features() {
       y: 0,
       transition: {
         duration: 0.6,
+        ease: "easeOut"
       },
     },
   } as const;
 
   return (
-    <section className="py-20 md:py-32 bg-muted/30">
-      <div className="container mx-auto max-w-7xl px-4 md:px-6">
+    <section ref={containerRef} className="py-20 md:py-32 bg-gradient-to-b from-background via-muted/20 to-background relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="container mx-auto max-w-7xl px-4 md:px-6 relative z-10">
         <motion.div
           className="mx-auto max-w-3xl text-center mb-16"
           initial={{ opacity: 0, y: 30 }}
@@ -94,8 +113,21 @@ export function Features() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
+          <motion.div
+            className="inline-block mb-4 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold"
+            initial={{ opacity: 0, scale: 0.8 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            Powerful Features
+          </motion.div>
+          
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl mb-4">
-            Everything You Need for Research
+            Everything You Need for{" "}
+            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Research
+            </span>
           </h2>
           <p className="text-lg text-muted-foreground">
             Powerful features designed to streamline your academic reading and writing workflow
@@ -112,25 +144,59 @@ export function Features() {
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
-              <motion.div key={index} variants={cardVariants}>
-                <Card className="animated-border-rainbow border-border hover:shadow-lg transition-all duration-300 h-full bg-card">
-                  <CardHeader>
+              <motion.div 
+                key={index} 
+                variants={cardVariants}
+                className="perspective-container"
+              >
+                <Card className="border-border hover:border-primary/50 transition-all duration-300 h-full bg-card/50 backdrop-blur-sm overflow-hidden group relative card-hover shine-effect">
+                  {/* Gradient overlay on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  
+                  <CardHeader className="relative z-10">
                     <motion.div
-                      className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4"
-                      whileHover={{ scale: 1.1, rotate: 5 }}
-                      transition={{ type: "spring", stiffness: 300 }}
+                      className="h-12 w-12 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300"
+                      whileHover={{ 
+                        rotate: [0, -10, 10, -10, 0],
+                        transition: { duration: 0.5 }
+                      }}
                     >
                       <Icon className="h-6 w-6 text-primary" />
                     </motion.div>
-                    <CardTitle className="text-lg">{feature.title}</CardTitle>
+                    <CardTitle className="text-lg group-hover:text-primary transition-colors duration-300">
+                      {feature.title}
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <CardDescription>{feature.description}</CardDescription>
+                  <CardContent className="relative z-10">
+                    <CardDescription className="leading-relaxed">
+                      {feature.description}
+                    </CardDescription>
                   </CardContent>
+
+                  {/* Animated corner accent */}
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </Card>
               </motion.div>
             );
           })}
+        </motion.div>
+
+        {/* Bottom CTA */}
+        <motion.div
+          className="mt-16 text-center"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          <p className="text-muted-foreground mb-4">
+            And much more features to discover...
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <div className="h-px w-12 bg-gradient-to-r from-transparent to-primary/50"></div>
+            <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+            <div className="h-px w-12 bg-gradient-to-l from-transparent to-primary/50"></div>
+          </div>
         </motion.div>
       </div>
     </section>

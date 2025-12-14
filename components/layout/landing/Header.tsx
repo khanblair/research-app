@@ -39,6 +39,12 @@ export function Header() {
               Pricing
             </Link>
             <Link
+              href="/dashboard"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Research Hub
+            </Link>
+            <Link
               href="/about"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -88,6 +94,13 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Pricing
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm font-medium text-muted-foreground"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Research Hub
             </Link>
             <Link
               href="/about"
