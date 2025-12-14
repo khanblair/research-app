@@ -42,7 +42,7 @@ export function Header() {
               href="/"
               className="text-sm font-medium text-emerald-600 dark:text-emerald-400 transition-colors hover:text-emerald-700 dark:hover:text-emerald-300 font-semibold"
             >
-              Khan Store
+              Khan Space
             </Link>
             <Link
               href="/research-hub/about"
@@ -100,7 +100,7 @@ export function Header() {
               className="text-sm font-medium text-emerald-600 dark:text-emerald-400 font-semibold"
               onClick={() => setMobileMenuOpen(false)}
             >
-              Khan Store
+              Khan Space
             </Link>
             <Link
               href="/research-hub/about"
