@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/layout/dashboard/Breadcrumbs";
@@ -22,7 +22,6 @@ import { loadPDF, extractTextFromPDF } from "@/lib/pdf-utils";
 import { toast } from "sonner";
 import { performOCR } from "@/lib/ocr";
 import { useConvexUser } from "@/hooks/use-convex-user";
-import { useSearchParams } from "next/navigation";
 
 export default function AnalysisPage() {
   const [selectedBookId, setSelectedBookId] = useState<Id<"books"> | null>(null);
@@ -31,8 +30,7 @@ export default function AnalysisPage() {
   const [needsOCR, setNeedsOCR] = useState(false);
   const [isOcrRunning, setIsOcrRunning] = useState(false);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
-
-  const searchParams = useSearchParams();
+  const [bookIdFromUrl, setBookIdFromUrl] = useState<Id<"books"> | null>(null);
 
   const { user: convexUser } = useConvexUser();
   const books = useQuery(
@@ -40,10 +38,16 @@ export default function AnalysisPage() {
     convexUser ? { userId: convexUser._id } : "skip"
   );
 
-  const bookIdFromUrl = useMemo(() => {
-    const raw = searchParams.get("bookId");
-    return raw ? (raw as Id<"books">) : null;
-  }, [searchParams]);
+  useEffect(() => {
+    // Client-only: avoid useSearchParams() Suspense requirement.
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const raw = sp.get("bookId");
+      if (raw) setBookIdFromUrl(raw as Id<"books">);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     if (!bookIdFromUrl) return;

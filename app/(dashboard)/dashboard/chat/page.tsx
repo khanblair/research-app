@@ -242,7 +242,6 @@ function ChatPageContent() {
     if (!input.trim() || isLoading || !selectedSessionId) return;
 
     if (isApiFreeLlm && isCoolingDown) {
-      toast.error(`Please wait ${cooldownSecondsLeft || 5} seconds before sending another message.`);
       return;
     }
 
@@ -625,7 +624,7 @@ function ChatPageContent() {
                         placeholder="Ask a question about your document..."
                         className="resize-none"
                         rows={2}
-                        disabled={isLoading}
+                        disabled={isLoading || isCoolingDown}
                       />
                       <Button onClick={handleSend} disabled={isLoading || isCoolingDown || !input.trim()}>
                         {isLoading ? (
@@ -637,6 +636,12 @@ function ChatPageContent() {
                         )}
                       </Button>
                     </div>
+
+                    {isApiFreeLlm && isCoolingDown && (
+                      <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                        Please wait {cooldownSecondsLeft || 5}s before sending another message.
+                      </p>
+                    )}
                   </CardContent>
                 </>
               )}

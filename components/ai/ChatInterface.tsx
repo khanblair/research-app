@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "./ChatMessage";
 import { QuickActions } from "./QuickActions";
 import { chatWithAI } from "@/lib/puter";
+import { isApiFreeLlmRateLimitMessage, parseApiFreeLlmWaitSeconds } from "@/lib/apifreellm";
 
 interface Message {
   role: "user" | "assistant";
@@ -23,7 +24,31 @@ export function ChatInterface({ bookId, context }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isCoolingDown = cooldownUntilMs ? Date.now() < cooldownUntilMs : false;
+
+  useEffect(() => {
+    if (!cooldownUntilMs) {
+      setCooldownSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      const msLeft = cooldownUntilMs - Date.now();
+      const secondsLeft = Math.max(0, Math.ceil(msLeft / 1000));
+      setCooldownSecondsLeft(secondsLeft);
+      if (secondsLeft <= 0) {
+        setCooldownUntilMs(null);
+      }
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [cooldownUntilMs]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -32,7 +57,7 @@ export function ChatInterface({ bookId, context }: ChatInterfaceProps) {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isCoolingDown) return;
 
     const userMessage: Message = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
@@ -57,6 +82,12 @@ export function ChatInterface({ bookId, context }: ChatInterfaceProps) {
     } catch (error: any) {
       const errorMsg = error?.message || error?.toString() || "Unknown error occurred";
       console.error("Chat error:", errorMsg, error);
+
+      if (isApiFreeLlmRateLimitMessage(errorMsg)) {
+        const wait = parseApiFreeLlmWaitSeconds(errorMsg) ?? 5;
+        setCooldownUntilMs(Date.now() + wait * 1000);
+      }
+
       const errorMessage: Message = {
         role: "assistant",
         content: `Sorry, I encountered an error: ${errorMsg}. If this is a rate limit, please wait a few seconds and try again.`,
@@ -120,20 +151,29 @@ export function ChatInterface({ bookId, context }: ChatInterfaceProps) {
             }}
             placeholder="Ask a question..."
             className="min-h-[60px] resize-none"
+            disabled={isLoading || isCoolingDown}
           />
           <Button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isCoolingDown}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isCoolingDown ? (
+              <span className="text-xs tabular-nums">{cooldownSecondsLeft || 5}s</span>
             ) : (
               <Send className="h-5 w-5" />
             )}
           </Button>
         </div>
+
+        {isCoolingDown && (
+          <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+            Please wait {cooldownSecondsLeft || 5}s before sending another message.
+          </p>
+        )}
       </div>
     </div>
   );

@@ -14,7 +14,14 @@ const REALISTIC_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 export const isApiFreeLlmRateLimitMessage = (msg: string) => {
-  return /rate limit exceeded/i.test(msg || "");
+  const m = (msg || "").toLowerCase();
+  return (
+    /rate limit exceeded/i.test(m) ||
+    /too many requests/i.test(m) ||
+    /before sending another message/i.test(m) ||
+    /please wait\s+\d+\s*seconds?/i.test(m) ||
+    /wait\s+\d+\s*seconds?/i.test(m)
+  );
 };
 
 export const parseApiFreeLlmWaitSeconds = (msg: string): number | null => {
