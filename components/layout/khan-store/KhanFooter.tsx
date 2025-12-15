@@ -153,13 +153,13 @@ export function KhanFooter() {
             </p>
             <div className="flex gap-6">
               <Link
-                href="#"
+                href="/privacy"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Privacy
               </Link>
               <Link
-                href="#"
+                href="/terms"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Terms
